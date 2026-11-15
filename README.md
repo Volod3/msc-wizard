@@ -12,76 +12,9 @@ Install MSCLoader and/or WreckMP multiplayer — safely, interactively, in minut
 [![Language](https://img.shields.io/badge/language-bash-lightgrey.svg)]()
 [![Steam](https://img.shields.io/badge/Steam%20app-516750-1b2838?logo=steam)](https://store.steampowered.com/app/516750/)
 
-[Українська](#-ukrainian) · [English](#-english)
+[English](#-english) · [Українська](#-ukrainian)
 
 </div>
-
----
-
-## 🇺🇦 Ukrainian
-
-### Що це?
-
-Інтерактивний bash-майстер, який встановлює **MSCLoader** (мод-лоадер) та/або **WreckMP** (мультиплеєр) для гри *My Summer Car* на Linux через Steam + Proton.
-
-**Нічого не змінюється без попередження.** Кожен крок перевіряє, чи вже зроблений — можна зупинитись і запустити знову.
-
-### Особливості
-
-- 🔄 **Ідемпотентний** — безпечно запускати повторно
-- 🧪 **Dry-run режим** — покаже що буде зроблено, нічого не змінюючи
-- 🌐 **Двомовний** — Українська / English, автовизначення за локаллю
-- 📦 **Будь-який Steam** — native, Flatpak, Snap
-- 🎮 **Non-Steam копія** — Wine / Lutris / Bottles / Heroic / Steam shortcut
-- 🔍 **Статус** — перевірка поточного стану без змін
-- 🛠️ **Fix MachineGuid** — після оновлення Proton/Steam
-
-### Вимоги
-
-- bash 4.4+
-- Steam з Proton (або Wine/Lutris/тощо для non-Steam копії)
-- [protontricks](https://github.com/Matoking/protontricks)
-- Встановлена гра *My Summer Car* (Steam App ID: 516750)
-
-### Встановлення та запуск
-
-```bash
-# Завантажити
-curl -LO https://raw.githubusercontent.com/Volod3/msc-wizard/main/msc-wizard.sh
-
-# Запустити
-bash msc-wizard.sh
-```
-
-### Використання
-
-```
-bash msc-wizard.sh                   # мова → тип запуску → меню
-bash msc-wizard.sh --dry-run         # пробний запуск: ті самі запитання, нічого не змінюється
-bash msc-wizard.sh --status          # показати стан (нічого не змінює)
-bash msc-wizard.sh --steam-info      # шпаргалка Steam: Proton, параметри запуску, шляхи
-bash msc-wizard.sh --fix-guid        # вирівняти MachineGuid (після оновлення Proton/Steam)
-bash msc-wizard.sh --nonsteam        # гра НЕ зі Steam (Wine / Lutris / Bottles / Heroic)
-bash msc-wizard.sh --game-dir /path  # вказати папку гри вручну
-bash msc-wizard.sh --lang uk|en      # мова інтерфейсу (пропускає запитання)
-bash msc-wizard.sh --help            # коротка довідка
-bash msc-wizard.sh --readme          # повний мануал
-```
-
-### Меню
-
-```
-Що робимо?
-  1) Тільки MSCLoader (моди без мультиплеєра)
-  2) Тільки WreckMP (MSCLoader уже стоїть)
-  3) Усе: MSCLoader + WreckMP
-  4) Показати стан і перевірити налаштування
-  5) Шпаргалка Steam
-  6) Вирівняти MachineGuid
-  7) Налаштування
-  8) Довідка / README
-  0) Вийти
-```
 
 ---
 
@@ -113,10 +46,7 @@ An interactive bash wizard that installs **MSCLoader** (mod loader) and/or **Wre
 ### Install & Run
 
 ```bash
-# Download
 curl -LO https://raw.githubusercontent.com/Volod3/msc-wizard/main/msc-wizard.sh
-
-# Run
 bash msc-wizard.sh
 ```
 
@@ -148,6 +78,70 @@ What do we do?
   7) Settings
   8) Help / README
   0) Quit
+```
+
+---
+
+## 🇺🇦 Ukrainian
+
+### Що це?
+
+Інтерактивний bash-майстер, який встановлює **MSCLoader** (мод-лоадер) та/або **WreckMP** (мультиплеєр) для гри *My Summer Car* на Linux через Steam + Proton.
+
+**Нічого не змінюється без попередження.** Кожен крок перевіряє, чи вже зроблений — можна зупинитись і запустити знову.
+
+### Особливості
+
+- 🔄 **Ідемпотентний** — безпечно запускати повторно
+- 🧪 **Dry-run режим** — покаже що буде зроблено, нічого не змінюючи
+- 🌐 **Двомовний** — Українська / English, автовизначення за локаллю
+- 📦 **Будь-який Steam** — native, Flatpak, Snap
+- 🎮 **Non-Steam копія** — Wine / Lutris / Bottles / Heroic / Steam shortcut
+- 🔍 **Статус** — перевірка поточного стану без змін
+- 🛠️ **Fix MachineGuid** — після оновлення Proton/Steam
+
+### Вимоги
+
+- bash 4.4+
+- Steam з Proton (або Wine/Lutris/тощо для non-Steam копії)
+- [protontricks](https://github.com/Matoking/protontricks)
+- Встановлена гра *My Summer Car* (Steam App ID: 516750)
+
+### Встановлення та запуск
+
+```bash
+curl -LO https://raw.githubusercontent.com/Volod3/msc-wizard/main/msc-wizard.sh
+bash msc-wizard.sh
+```
+
+### Використання
+
+```
+bash msc-wizard.sh                   # мова → тип запуску → меню
+bash msc-wizard.sh --dry-run         # пробний запуск: ті самі запитання, нічого не змінюється
+bash msc-wizard.sh --status          # показати стан (нічого не змінює)
+bash msc-wizard.sh --steam-info      # шпаргалка Steam: Proton, параметри запуску, шляхи
+bash msc-wizard.sh --fix-guid        # вирівняти MachineGuid (після оновлення Proton/Steam)
+bash msc-wizard.sh --nonsteam        # гра НЕ зі Steam (Wine / Lutris / Bottles / Heroic)
+bash msc-wizard.sh --game-dir /path  # вказати папку гри вручну
+bash msc-wizard.sh --lang uk|en      # мова інтерфейсу (пропускає запитання)
+bash msc-wizard.sh --help            # коротка довідка
+bash msc-wizard.sh --readme          # повний мануал
+```
+
+### Меню
+
+```
+Що робимо?
+  1) Тільки MSCLoader (моди без мультиплеєра)
+  2) Тільки WreckMP (MSCLoader уже стоїть)
+  3) Усе: MSCLoader + WreckMP
+  4) Показати стан і перевірити налаштування
+  5) Шпаргалка Steam
+  6) Вирівняти MachineGuid
+  7) Налаштування
+  8) Довідка / README
+  0) Вийти
 ```
 
 ---
