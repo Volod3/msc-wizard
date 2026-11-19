@@ -12,6 +12,8 @@
 #   bash msc-wizard.sh --dry-run      rehearsal: same questions, nothing is changed
 #   bash msc-wizard.sh --status       show the state and check the setup (changes nothing)
 #   bash msc-wizard.sh --steam-info   Steam cheat sheet: Proton, launch options, shortcut paths
+#   bash msc-wizard.sh --tune         detect this PC's GPU/CPU and give matching Steam launch options
+#   bash msc-wizard.sh --gpu-check   while the game runs: which renderer / GPU it really uses
 #   bash msc-wizard.sh --fix-guid     align MachineGuid (after a Proton/Steam update)
 #   bash msc-wizard.sh --nonsteam     the game is NOT from Steam (Wine / Lutris / Bottles / Heroic / Steam shortcut)
 #   bash msc-wizard.sh --game-dir P   game folder (otherwise found automatically); --prefix P = Wine prefix; --wine P = wine binary
@@ -19,7 +21,7 @@
 #   bash msc-wizard.sh --help         short help;  --readme = full manual
 set -u
 
-VERSION="2.1.0"
+VERSION="2.2.0"
 STEAM_APPID=516750
 GAME_APPID=$STEAM_APPID
 GAME_NAME="My Summer Car"
@@ -424,6 +426,57 @@ m rcw_4         'НЕ ПЕРЕВІРЕНО на справжній систем�
 m inf_distro    'Дистрибутив: %s (пакетний менеджер: %s)' 'Distro: %s (package manager: %s)'
 m inf_src       'Копія гри: %s' 'Game copy: %s'
 m dep_miss      'Бракує: %s. Встановлення: %s' 'Missing: %s. Install: %s'
+
+# --- PC tuning
+m menu_9        '9) Оптимізація під цей ПК: визначити залізо й дати параметри запуску' '9) Tune for this PC: detect the hardware and give launch options'
+m st_tune       'Оптимізація під цей ПК' 'Tune for this PC'
+m st_gcheck     'Перевірка запущеної гри: який рендерер і яка відеокарта' 'Check the running game: which renderer and which GPU'
+m tune_hw_head  'Знайдене залізо (тільки читання):' 'Detected hardware (read only):'
+m tune_os       '  Система: %s (пакетний менеджер: %s)' '  System: %s (package manager: %s)'
+m tune_cpu      '  Процесор: %s, потоків: %s' '  CPU: %s, threads: %s'
+m tune_ram      '  Пам’ять: %s ГБ' '  RAM: %s GB'
+m tune_sess     '  Сесія: %s' '  Session: %s'
+m tune_gpu      '  GPU %s: %s [%s, драйвер: %s, VRAM: %s МБ]' '  GPU %s: %s [%s, driver: %s, VRAM: %s MB]'
+m tune_nogpu    'GPU не знайдено в /sys/class/drm (контейнер або дивна система). Параметри будуть базовими.' 'No GPU found in /sys/class/drm (container or unusual system). Options will be basic.'
+m tune_deck     '  Це Steam Deck: окремі змінні не потрібні.' '  This is a Steam Deck: no extra variables are needed.'
+m tune_sandbox  '  Steam у Flatpak/Snap: gamemode не додається (він недоступний у пісочниці), скрипт лежить у теці гри.' '  Steam is a Flatpak/Snap: gamemode is not added (unavailable in the sandbox); the script lives in the game folder.'
+m tune_prof_nvidia '  Профіль: NVIDIA з пропрієтарним драйвером.' '  Profile: NVIDIA with the proprietary driver.'
+m tune_prof_mesa   '  Профіль: Mesa (AMD / Intel / nouveau).' '  Profile: Mesa (AMD / Intel / nouveau).'
+m tune_prof_deck   '  Профіль: Steam Deck.' '  Profile: Steam Deck.'
+m tune_prof_vm     '  Профіль: віртуальна машина (немає справжнього GPU).' '  Profile: virtual machine (no real GPU).'
+m tune_prof_unknown '  Профіль: невідомо.' '  Profile: unknown.'
+m tune_hybrid   '  Гібридна графіка: гра примусово піде на %s.' '  Hybrid graphics: the game will be forced onto %s.'
+m tune_soft     'Справжнього GPU не видно: гра рендеритиметься програмно (дуже повільно). Перевір драйвери.' 'No real GPU is visible: the game would render in software (very slow). Check the drivers.'
+m tune_nouveau  'Є NVIDIA, але з драйвером nouveau: з ним мало FPS. Встанови пропрієтарний драйвер NVIDIA, тоді запусти це знову.' 'An NVIDIA card is present but runs on nouveau, which is slow. Install the proprietary NVIDIA driver and run this again.'
+m tune_lowram   'Менше 7 ГБ RAM: закрий браузер перед грою, інакше будуть лаги від свопу.' 'Under 7 GB of RAM: close the browser before playing, or swapping will cause lag.'
+m tune_nogm     'gamemode не встановлено (необов’язково, трохи допомагає з частотами CPU). Встановлення:' 'gamemode is not installed (optional, helps a little with CPU clocks). Install:'
+m tune_badpath  'Шлях гри містить лапки, $ або зворотний слеш і не підходить для Launch Options: %s. Перемісти гру або перейменуй теки.' 'The game path contains quotes, $ or a backslash and cannot go into Launch Options: %s. Move the game or rename the folders.'
+m act_tune_script 'Створив би скрипт перемикача й автозакриття лаунчера: %s' 'Would create the mode switch and launcher auto-close script: %s'
+m act_tune_ds   'Створив би doorstop_config_vanilla.ini і doorstop_config_wmp.bak з поточного doorstop_config.ini' 'Would create doorstop_config_vanilla.ini and doorstop_config_wmp.bak from the current doorstop_config.ini'
+m tune_ds_have  'Файли doorstop_config_vanilla.ini і doorstop_config_wmp.bak вже є, не чіпаю.' 'doorstop_config_vanilla.ini and doorstop_config_wmp.bak already exist, leaving them alone.'
+m tune_ds_noini 'doorstop_config.ini немає: спершу встанови MSCLoader (пункт 1). Файли режимів не створено.' 'doorstop_config.ini is missing: install MSCLoader first (item 1). Mode files were not created.'
+m tune_ds_notarget 'У doorstop_config.ini не знайшов рядок target...: створи doorstop_config_vanilla.ini і doorstop_config_wmp.bak вручну.' 'No target... line in doorstop_config.ini: create doorstop_config_vanilla.ini and doorstop_config_wmp.bak by hand.'
+m tune_ds_nodll 'Не знайдено потрібну DLL (%s / %s): файли режимів не створено, зроби їх вручну (target MSCLoader.Preloader.dll і WreckMP.Preloader.dll).' 'A required DLL was not found (%s / %s): mode files were not created, make them by hand (target MSCLoader.Preloader.dll and WreckMP.Preloader.dll).'
+m tune_ds_made  'Створено %s' 'Created %s'
+m tune_wine_1   'Копія без Steam: додай ці змінні перед командою запуску гри (або в налаштування Lutris/Bottles/Heroic):' 'Copy without Steam: put these variables before the game start command (or into the Lutris/Bottles/Heroic settings):'
+m tune_wine_2   'Перемикач режимів і автозакриття лаунчера потрібні лише для Steam-копії.' 'The mode switch and launcher auto-close are only for a Steam copy.'
+m tune_game_head 'Steam -> %s -> Властивості -> Параметри запуску (заміни все, що там є):' 'Steam -> %s -> Properties -> Launch Options (replace whatever is there):'
+m tune_launcher_head 'Steam -> ярлик лаунчера WreckMP -> Властивості -> Параметри запуску (заміни все):' 'Steam -> the WreckMP launcher shortcut -> Properties -> Launch Options (replace everything):'
+m tune_steps    'Закрий і знову відкрий Steam, якщо параметри не зберігаються. Версії Proton лишаються як у кроках вище.' 'Restart Steam if the options do not stick. Proton versions stay as in the steps above.'
+m tune_old      'Якщо в тебе вже є свій ~/msc_launch.sh, його можна не видаляти: нові параметри його не використовують.' 'If you already have your own ~/msc_launch.sh you can keep it: the new options do not use it.'
+m tune_verify   'Запусти гру (для мультиплеєра через лаунчер) і, поки вона працює, виконай у терміналі:' 'Start the game (through the launcher for multiplayer) and, while it runs, execute in a terminal:'
+m tune_unverified 'Змінні підібрані консервативно під тип заліза; приріст FPS не вимірювався. Лог перемикача: <тека гри>/.msc-wizard/msc.log' 'The variables are chosen conservatively for the hardware class; FPS gain was not measured. Switch log: <game folder>/.msc-wizard/msc.log'
+m gc_nogame     'mysummercar.exe не запущений. Запусти гру й виконай це знову.' 'mysummercar.exe is not running. Start the game and run this again.'
+m gc_pid        'Процес гри: PID %s' 'Game process: PID %s'
+m gc_env        'Змінні в процесі гри:' 'Variables in the game process:'
+m gc_noenv      'Не можу прочитати змінні процесу.' 'Cannot read the process variables.'
+m gc_wined3d    'PROTON_USE_WINED3D=1 у грі: вона малює через OpenGL (wined3d), це причина 1 FPS. Знайди, звідки береться змінна (Launch Options, скрипти).' 'PROTON_USE_WINED3D=1 in the game: it renders through OpenGL (wined3d), a common cause of 1 FPS. Find where the variable comes from (Launch Options, scripts).'
+m gc_dxvk       'DXVK завантажено (Vulkan): це правильний шлях.' 'DXVK is loaded (Vulkan): the correct path.'
+m gc_wined3d_lib 'Завантажено wined3d (OpenGL).' 'wined3d (OpenGL) is loaded.'
+m gc_lvp        'Є libvulkan_lvp: це лише драйвер, який бачить Vulkan-лоадер, сам по собі не означає софтовий рендер.' 'libvulkan_lvp is present: that is only a driver the Vulkan loader sees, it does not mean software rendering by itself.'
+m gc_nv_yes     'Гра є в списку процесів nvidia-smi: рендер на NVIDIA.' 'The game is listed in nvidia-smi: rendering on NVIDIA.'
+m gc_nv_no      'Гри немає в nvidia-smi: рендер іде не на NVIDIA (на гібридному ноутбуці це проблема).' 'The game is not in nvidia-smi: it is not rendering on NVIDIA (a problem on a hybrid laptop).'
+m ch_tune_hint  'Параметри запуску під ЦЕЙ ПК (GPU, автозакриття лаунчера) дає пункт 9 / bash %s --tune: вони важливіші за значення вище.' 'Launch options fitted to THIS PC (GPU, launcher auto-close) come from item 9 / bash %s --tune: they take priority over the values above.'
 
 # ================================================================== helpers
 step()  { printf '\n=== %s ===\n' "$*"; }
@@ -838,7 +891,7 @@ kill_busy() {
   for p in $(busy_list | awk '{print $1}'); do kill -9 "$p" 2>/dev/null; done
   sleep 1
 }
-lopts_ok()  { case "$L_OPTS" in *PROTON_USE_WINED3D=1*) ;; *) return 1 ;; esac; case "$L_OPTS" in *DOTNET_EnableWriteXorExecute=0*) return 0 ;; esac; return 1; }
+lopts_ok()  { case "$L_OPTS" in *.wmp_flag*) return 0 ;; esac; case "$L_OPTS" in *PROTON_USE_WINED3D=1*) ;; *) return 1 ;; esac; case "$L_OPTS" in *DOTNET_EnableWriteXorExecute=0*) return 0 ;; esac; return 1; }
 target_ok() { [ -n "$L_EXE" ] && [ -f "$L_EXE" ] && case "$L_EXE" in */WreckMP/*) return 0 ;; esac; return 1; }
 start_ok()  { [ -n "$L_EXE" ] && [ "${L_START%/}" = "$(dirname "$L_EXE")" ]; }
 
@@ -1624,6 +1677,7 @@ steam_cheatsheet() {
   note "$(t ch_c1 "$PROTON_INSTALL")"
   echo
   tn ch_flush
+  note "$(t ch_tune_hint "$SELF")"
   caps_warning
 }
 
@@ -1674,6 +1728,276 @@ dry_summary() {
     for l in "${DRY_LOG[@]}"; do printf '    %2d. %s\n' "$i" "$l"; i=$((i+1)); done
   fi
   [ "$DEMO" = 1 ] && tn dry_sum_demo
+  return 0
+}
+
+# ================================================================== PC tuning: hardware -> launch options
+# Reads the hardware (READ ONLY: /sys, /proc, optional lspci / nvidia-smi, so it works on any
+# distribution) and builds Steam Launch Options that fit THIS computer. Nothing here needs root.
+HW_GPU_VENDOR=(); HW_GPU_NAME=(); HW_GPU_DRV=(); HW_GPU_BOOT=(); HW_GPU_VRAM=()
+HW_BEST=-1; HW_HYBRID=0; HW_PROFILE=unknown; HW_CORES=0; HW_RAM_MB=0; HW_CPU=""
+HW_SESSION=""; HW_DECK=0; HW_SANDBOX=0
+TUNE_ENV=""; TUNE_PRE=""
+
+hw_read() { [ -r "$1" ] && tr -d '\n' < "$1"; }   # first line of a sysfs file, empty if unreadable
+
+hw_vendor_name() {  # PCI vendor id -> short key
+  case "$1" in
+    0x10de) echo nvidia ;;
+    0x1002) echo amd ;;
+    0x8086) echo intel ;;
+    0x1af4|0x1234|0x15ad|0x80ee|0x1b36) echo vm ;;
+    *)      echo other ;;
+  esac
+}
+hw_pci_name() {  # hw_pci_name ADDR VENDOR_KEY DEVICE_ID -> a readable model name
+  local n=""
+  if have lspci; then
+    n=$(lspci -s "$1" -mm 2>/dev/null | head -n1 | awk -F'"' '{print $6}')
+    case "$n" in *\[*\]*) n=$(printf '%s' "$n" | sed 's/.*\[\(.*\)\].*/\1/') ;; esac
+  fi
+  if [ "$2" = nvidia ] && have nvidia-smi; then
+    n=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -n1)
+  fi
+  [ -n "$n" ] || n="PCI device $3"
+  printf '%s' "$n"
+}
+hw_detect() {
+  HW_GPU_VENDOR=(); HW_GPU_NAME=(); HW_GPU_DRV=(); HW_GPU_BOOT=(); HW_GPU_VRAM=()
+  local c dev cls v vk did addr drv boot vram
+  for c in /sys/class/drm/card*; do
+    [ -e "$c" ] || continue
+    case "${c##*/}" in card[0-9]*-*) continue ;; esac     # skip connectors (card0-eDP-1)
+    dev=$(readlink -f "$c/device" 2>/dev/null) || continue
+    [ -d "$dev" ] || continue
+    cls=$(hw_read "$dev/class"); case "$cls" in 0x03*) ;; *) continue ;; esac
+    v=$(hw_read "$dev/vendor"); did=$(hw_read "$dev/device"); vk=$(hw_vendor_name "$v")
+    addr="${dev##*/}"
+    drv=""; [ -L "$dev/driver" ] && drv=$(basename "$(readlink -f "$dev/driver")")
+    boot=$(hw_read "$dev/boot_vga"); boot="${boot:-0}"
+    vram=0; if [ -r "$dev/mem_info_vram_total" ]; then vram=$(( $(hw_read "$dev/mem_info_vram_total") / 1048576 )); fi
+    HW_GPU_VENDOR+=("$vk"); HW_GPU_NAME+=("$(hw_pci_name "$addr" "$vk" "$did")")
+    HW_GPU_DRV+=("${drv:-?}"); HW_GPU_BOOT+=("$boot"); HW_GPU_VRAM+=("$vram")
+  done
+  HW_CORES=$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo 0)
+  HW_RAM_MB=$(awk '/^MemTotal:/{printf "%d", $2/1024}' /proc/meminfo 2>/dev/null); HW_RAM_MB="${HW_RAM_MB:-0}"
+  HW_CPU=$(grep -m1 -iE '^(model name|hardware|cpu model)' /proc/cpuinfo 2>/dev/null | cut -d: -f2- | sed 's/^[[:space:]]*//')
+  if [ -z "$HW_CPU" ] && have lscpu; then HW_CPU=$(lscpu 2>/dev/null | awk -F: '/Model name/{sub(/^[ \t]+/,"",$2); print $2; exit}'); fi
+  HW_SESSION="${XDG_SESSION_TYPE:-unknown}"
+  HW_DECK=0
+  case "$(hw_read /sys/devices/virtual/dmi/id/product_name)" in Jupiter|Galileo) HW_DECK=1 ;; esac
+  HW_SANDBOX=0
+  case "$GAME_DIR $LIB $COMPAT" in *com.valvesoftware.Steam*|*/snap/steam/*) HW_SANDBOX=1 ;; esac
+  hw_classify
+}
+hw_classify() {  # picks the GPU that should render the game and the profile name
+  local n=${#HW_GPU_VENDOR[@]} i nv=-1 amd=-1 amdn=0 intel=0 vm=0 best=-1 bv=-1
+  HW_BEST=-1; HW_HYBRID=0; HW_PROFILE=unknown
+  [ "$n" -gt 0 ] || return 0
+  for ((i=0; i<n; i++)); do
+    case "${HW_GPU_VENDOR[$i]}" in
+      nvidia) [ "$nv" -lt 0 ] && nv=$i ;;
+      amd)    amdn=$((amdn+1)); if [ "${HW_GPU_VRAM[$i]}" -gt "$bv" ]; then bv="${HW_GPU_VRAM[$i]}"; amd=$i; fi ;;
+      intel)  intel=$((intel+1)) ;;
+      vm)     vm=$((vm+1)) ;;
+    esac
+  done
+  if   [ "$nv" -ge 0 ]; then best=$nv
+  elif [ "$amd" -ge 0 ] && { [ "$intel" -gt 0 ] || [ "$amdn" -gt 1 ]; }; then best=$amd
+  elif [ "$amd" -ge 0 ]; then best=$amd
+  else best=0; fi
+  HW_BEST=$best
+  [ "$n" -gt 1 ] && [ "$vm" -lt "$n" ] && HW_HYBRID=1
+  if [ "$vm" -eq "$n" ]; then HW_PROFILE=vm
+  elif [ "$HW_DECK" = 1 ]; then HW_PROFILE=deck; HW_HYBRID=0
+  elif [ "${HW_GPU_VENDOR[$best]}" = nvidia ] && [ "${HW_GPU_DRV[$best]}" = nvidia ]; then HW_PROFILE=nvidia
+  else HW_PROFILE=mesa; fi
+}
+
+tune_nv_short() {  # "NVIDIA GeForce GTX 1650" -> "GTX 1650" (DXVK matches a substring of the device name)
+  printf '%s' "$1" | sed -e 's/^NVIDIA //' -e 's/^GeForce //' | tr -cd 'A-Za-z0-9 .-'
+}
+tune_build() {  # fills TUNE_ENV (variables) and TUNE_PRE (a prefix command) from the detected hardware
+  local env="" short
+  TUNE_ENV=""; TUNE_PRE=""
+  case "$HW_PROFILE" in
+    nvidia)
+      env="__GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1"
+      if [ "$HW_HYBRID" = 1 ]; then
+        env="__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia __VK_LAYER_NV_optimus=NVIDIA_only $env"
+        short=$(tune_nv_short "${HW_GPU_NAME[$HW_BEST]}")
+        [ -n "$short" ] && env="$env DXVK_FILTER_DEVICE_NAME=\"$short\""
+      fi ;;
+    mesa)
+      env="MESA_SHADER_CACHE_MAX_SIZE=4G"
+      [ "$HW_HYBRID" = 1 ] && env="DRI_PRIME=1 $env" ;;
+  esac
+  TUNE_ENV="WINEDLLOVERRIDES=\"winhttp=n,b\"${env:+ $env}"
+  if [ "$HW_SANDBOX" = 0 ] && [ "$HW_PROFILE" != vm ] && have gamemoderun; then TUNE_PRE="gamemoderun "; fi
+}
+tune_script_path() { printf '%s/.msc-wizard/msc_launch.sh' "$GAME_DIR"; }
+tune_game_opts() {  # the monolithic form: if the script is missing the game still starts
+  printf '%s' "$TUNE_ENV bash -c 'S=\"$(tune_script_path)\"; if [ -x \"\$S\" ]; then exec \"\$S\" \"\$@\"; else exec \"\$@\"; fi' _ ${TUNE_PRE}%command%"
+}
+tune_launcher_opts() {  # writes the PID of the launcher into the flag file for the duration of its life
+  printf '%s' "bash -c 'F=\"$GAME_DIR/.wmp_flag\"; echo \$\$ > \"\$F\"; trap \"rm -f \\\"\$F\\\"\" EXIT; \"\$@\"' _ %command%"
+}
+
+write_launch_script() {  # write_launch_script FILE : the switcher + launcher auto-close, game folder baked in
+  local f="$1"
+  mkdir -p "$(dirname "$f")" || return 1
+  {
+    printf '#!/usr/bin/env bash\n# Generated by msc-wizard %s. Safe to delete: the Launch Options fall back to starting the game as is.\n' "$VERSION"
+    printf 'D=%q\n' "$GAME_DIR"
+    cat <<'EOS'
+FLAG="$D/.wmp_flag"
+LOGDIR="$D/.msc-wizard"; LOG="$LOGDIR/msc.log"
+CLOSE_AFTER="${MSC_CLOSE_AFTER:-5}"
+log() { printf '%s %s\n' "$(date +%T)" "$*" >> "$LOG" 2>/dev/null; }
+kids() { if command -v pgrep >/dev/null 2>&1; then pgrep -P "$1"; else ps -eo pid=,ppid= | awk -v p="$1" '$2==p{print $1}'; fi; }
+kill_tree() { local c; for c in $(kids "$1"); do kill_tree "$c"; done; kill -TERM "$1" 2>/dev/null; }
+
+# background helper: closes the WreckMP launcher a few seconds after the game started
+if [ "${1:-}" = "__close" ]; then
+  case "${2:-}" in ''|*[!0-9]*|0|1) exit 0 ;; esac      # never signal PID 0/1 (a process group / init)
+  sleep "$CLOSE_AFTER"
+  log "closing launcher, pid=$2"
+  kill_tree "$2"
+  if command -v pkill >/dev/null 2>&1; then
+    pkill -TERM -f '[W]reckMPLauncher\.exe|[U]pdater\.exe' 2>/dev/null
+    sleep 3
+    pkill -KILL -f '[W]reckMPLauncher\.exe|[U]pdater\.exe' 2>/dev/null
+  fi
+  log "launcher closed"
+  exit 0
+fi
+
+mkdir -p "$LOGDIR" 2>/dev/null
+log "start flag=$([ -f "$FLAG" ] && echo yes || echo no) env_wined3d=${PROTON_USE_WINED3D:-unset}"
+unset PROTON_USE_WINED3D        # wined3d (OpenGL) is the usual cause of ~1 FPS; the game must use DXVK
+
+if [ -f "$FLAG" ] && kill -0 "$(cat "$FLAG" 2>/dev/null)" 2>/dev/null; then
+  # the WreckMP launcher is alive: multiplayer mode
+  [ -f "$D/doorstop_config_wmp.bak" ] && cp "$D/doorstop_config_wmp.bak" "$D/doorstop_config.ini"
+  export DOTNET_EnableWriteXorExecute=0
+  LPID="$(cat "$FLAG")"
+  if command -v setsid >/dev/null 2>&1; then
+    setsid nohup bash "$0" __close "$LPID" >/dev/null 2>&1 </dev/null &
+  else
+    nohup bash "$0" __close "$LPID" >/dev/null 2>&1 </dev/null &
+  fi
+  log "mode=wmp launcher_pid=$LPID"
+else
+  # normal start: MSCLoader only
+  rm -f "$FLAG"
+  [ -f "$D/doorstop_config_vanilla.ini" ] && cp "$D/doorstop_config_vanilla.ini" "$D/doorstop_config.ini"
+  log "mode=vanilla"
+fi
+
+export WINEDLLOVERRIDES="winhttp=n,b"
+exec "$@"
+EOS
+  } > "$f" && chmod +x "$f"
+}
+
+ds_target_re='^([[:space:]]*[Tt]arget[A-Za-z_]*[[:space:]]*=).*'
+make_doorstop_variants() {  # creates doorstop_config_vanilla.ini / doorstop_config_wmp.bak if they are missing
+  local ini="$GAME_DIR/doorstop_config.ini" van="$GAME_DIR/doorstop_config_vanilla.ini" wmp="$GAME_DIR/doorstop_config_wmp.bak"
+  local line ml wp cr="" sep="/" v
+  if [ -f "$van" ] && [ -f "$wmp" ]; then to tune_ds_have; return 0; fi
+  if [ ! -f "$ini" ]; then tw tune_ds_noini; return 0; fi
+  line=$(grep -m1 -E "$ds_target_re" "$ini") || { tw tune_ds_notarget; return 0; }
+  case "$line" in *$'\r') cr=$'\r' ;; esac
+  case "$line" in *\\*) sep='\' ;; esac
+  ml=$(cd "$GAME_DIR" && find . -name 'MSCLoader.Preloader.dll' 2>/dev/null | head -n1); ml="${ml#./}"
+  wp=$(cd "$GAME_DIR" && find . -name 'WreckMP.Preloader.dll' 2>/dev/null | head -n1); wp="${wp#./}"
+  if [ -z "$ml" ] || [ -z "$wp" ]; then tw tune_ds_nodll "${ml:-MSCLoader.Preloader.dll: -}" "${wp:-WreckMP.Preloader.dll: -}"; return 0; fi
+  if [ "$DRY" = 1 ]; then dry_note "$(t act_tune_ds)"; return 0; fi
+  if [ ! -f "$van" ]; then
+    v="${ml//\//$sep}"; v=$(printf '%s' "$v" | sed 's/[\\&|]/\\&/g')
+    sed -E "s|$ds_target_re|\\1${v}${cr}|" "$ini" > "$van" && to tune_ds_made "$(basename "$van")"
+  fi
+  if [ ! -f "$wmp" ]; then
+    v="${wp//\//$sep}"; v=$(printf '%s' "$v" | sed 's/[\\&|]/\\&/g')
+    sed -E "s|$ds_target_re|\\1${v}${cr}|" "$ini" > "$wmp" && to tune_ds_made "$(basename "$wmp")"
+  fi
+  return 0
+}
+
+hw_report() {
+  local i n=${#HW_GPU_VENDOR[@]}
+  tn tune_hw_head
+  tn tune_os "$(distro_name)" "$(detect_pm)"
+  tn tune_cpu "${HW_CPU:-?}" "$HW_CORES"
+  tn tune_ram "$((HW_RAM_MB / 1024))"
+  tn tune_sess "$HW_SESSION"
+  if [ "$n" -eq 0 ]; then tw tune_nogpu; fi
+  for ((i=0; i<n; i++)); do
+    tn tune_gpu "$i" "${HW_GPU_NAME[$i]}" "${HW_GPU_VENDOR[$i]}" "${HW_GPU_DRV[$i]}" "${HW_GPU_VRAM[$i]}"
+  done
+  [ "$HW_DECK" = 1 ] && tn tune_deck
+  if [ "$HW_SANDBOX" = 1 ]; then tn tune_sandbox; fi
+  note "$(t "tune_prof_$HW_PROFILE")"
+  if [ "$HW_HYBRID" = 1 ] && [ "$HW_BEST" -ge 0 ]; then tn tune_hybrid "${HW_GPU_NAME[$HW_BEST]}"; fi
+  case "$HW_PROFILE" in vm|unknown) tw tune_soft ;; esac
+  if [ "$HW_PROFILE" = mesa ]; then
+    for ((i=0; i<n; i++)); do [ "${HW_GPU_VENDOR[$i]}" = nvidia ] && tw tune_nouveau; done
+  fi
+  [ "$HW_RAM_MB" -gt 0 ] && [ "$HW_RAM_MB" -lt 7000 ] && tw tune_lowram
+  [ -z "$TUNE_PRE" ] && [ "$HW_SANDBOX" = 0 ] && [ "$HW_PROFILE" != vm ] && { tn tune_nogm; show "$(pm_hint gamemode)"; }
+  return 0
+}
+
+step_tune() {
+  ts st_tune
+  case "$GAME_DIR" in *\'*|*\"*|*\$*|*\`*|*\\*) td tune_badpath "$GAME_DIR" ;; esac
+  hw_detect; hw_report; tune_build
+  local sp; sp=$(tune_script_path)
+  echo
+  if [ "$GAME_SRC" = wine ]; then
+    tn tune_wine_1; show_copy "$TUNE_ENV"
+    tn tune_wine_2
+    return 0
+  fi
+  act "$(t act_tune_script "$sp")" write_launch_script "$sp"
+  make_doorstop_variants
+  if [ "$DRY" != 1 ]; then
+    { printf 'game:     %s\nlauncher: %s\n' "$(tune_game_opts)" "$(tune_launcher_opts)"; } > "$GAME_DIR/.msc-wizard/launch-options.txt" 2>/dev/null
+  fi
+  echo
+  tn tune_game_head "$GAME_NAME"; show_copy "$(tune_game_opts)"
+  tn tune_launcher_head; show_copy "$(tune_launcher_opts)"
+  tn tune_steps
+  tn tune_old
+  tn tune_verify
+  show "bash $SELF --gpu-check"
+  tn tune_unverified
+}
+flow_tune() { step_tune; }
+
+gpu_check() {  # inspects the RUNNING game: which renderer and which GPU it really uses (read only)
+  ts st_gcheck
+  local pid env nv
+  pid=$(ps -eo pid=,args= 2>/dev/null | grep -iE '[m]ysummercar\.exe' | awk '{print $1}' | tail -n1)
+  if [ -z "$pid" ]; then tw gc_nogame; return 0; fi
+  tn gc_pid "$pid"
+  if [ -r "/proc/$pid/environ" ]; then
+    env=$(tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null)
+    tn gc_env
+    printf '%s\n' "$env" | grep -E '^(PROTON_USE_WINED3D|__NV_PRIME_RENDER_OFFLOAD|__GLX_VENDOR_LIBRARY_NAME|__VK_LAYER_NV_optimus|DXVK_FILTER_DEVICE_NAME|DRI_PRIME|DOTNET_EnableWriteXorExecute|MESA_SHADER_CACHE_MAX_SIZE)=' | sed 's/^/      /'
+    printf '%s\n' "$env" | grep -q '^PROTON_USE_WINED3D=1' && tw gc_wined3d
+  else
+    tw gc_noenv
+  fi
+  if [ -r "/proc/$pid/maps" ]; then
+    if grep -qi 'dxvk' "/proc/$pid/maps" 2>/dev/null; then to gc_dxvk; fi
+    if grep -qi 'wined3d' "/proc/$pid/maps" 2>/dev/null; then tw gc_wined3d_lib; fi
+    if grep -qi 'libvulkan_lvp' "/proc/$pid/maps" 2>/dev/null; then tn gc_lvp; fi
+  fi
+  if have nvidia-smi && nvidia-smi -L >/dev/null 2>&1; then
+    nv=$(nvidia-smi 2>/dev/null | grep -i 'mysummercar')
+    if [ -n "$nv" ]; then to gc_nv_yes; else tw gc_nv_no; fi
+  fi
   return 0
 }
 
@@ -1757,6 +2081,9 @@ Usage:  bash @SELF@ [option]
   --status         show the state and check the setup (changes nothing)
   --steam-info     Steam cheat sheet: Proton versions, launch options, shortcut paths,
                    compared with what Steam currently has
+  --tune           detect this PC's GPU/CPU/RAM and print Steam Launch Options that fit it
+                   (right GPU on hybrid laptops, mode switch, launcher auto-close after 5 s)
+  --gpu-check      while the game runs: shows which renderer (DXVK / wined3d) and GPU it really uses
   --fix-guid       align MachineGuid (run after a Proton/Steam update)
   --nonsteam       the game is NOT from Steam (the wizard finds it by itself and asks how you launch it:
                    a Steam shortcut or plain Wine / Lutris / Bottles / Heroic); --steam = Steam copy
@@ -1786,6 +2113,9 @@ msc-wizard.sh @VERSION@: майстер встановлення MSCLoader і Wr
   --status         показати стан і перевірити налаштування (нічого не змінює)
   --steam-info     шпаргалка Steam: версії Proton, параметри запуску, шляхи для ярлика,
                    порівняно з тим, що зараз стоїть у Steam
+  --tune           визначити GPU/CPU/RAM цього ПК і дати параметри запуску Steam, що йому підходять
+                   (потрібна відеокарта на гібридних ноутбуках, перемикач режимів, автозакриття лаунчера за 5 с)
+  --gpu-check      поки гра працює: який рендерер (DXVK / wined3d) і яка відеокарта справді використовуються
   --fix-guid       вирівняти MachineGuid (після оновлення Proton/Steam)
   --nonsteam       гра НЕ зі Steam (майстер сам її знаходить і питає, як ти запускаєш:
                    ярлик у Steam або Wine / Lutris / Bottles / Heroic); --steam = копія зі Steam
@@ -1837,6 +2167,21 @@ MENU
   6  Align MachineGuid       after a Proton/Steam update
   7  Settings                language, run type, game folder
   8  Help / README           this text
+  9  Tune for this PC        hardware detection -> Launch Options for exactly this computer
+
+TUNE FOR THIS PC  (item 9 / --tune, then --gpu-check)
+  Reads the hardware only from /sys, /proc and, when present, lspci / nvidia-smi, so it needs no
+  root and works on any distribution. It builds the Launch Options for THIS computer:
+    NVIDIA + Intel/AMD laptop   __NV_PRIME_RENDER_OFFLOAD, __GLX_VENDOR_LIBRARY_NAME, __VK_LAYER_NV_optimus
+                                and DXVK_FILTER_DEVICE_NAME with the card's short name
+    AMD/Intel/nouveau + 2nd GPU DRI_PRIME=1 (Mesa picks the other GPU)
+    single GPU / Steam Deck     no GPU variables; only shader-cache settings
+    gamemoderun                 added if installed (not for Flatpak/Snap Steam)
+  It also writes <game folder>/.msc-wizard/msc_launch.sh (switches doorstop between MSCLoader and
+  WreckMP, unsets PROTON_USE_WINED3D for the game, closes the WreckMP launcher MSC_CLOSE_AFTER=5 s
+  after the game starts) and, if missing, doorstop_config_vanilla.ini / doorstop_config_wmp.bak.
+  The Launch Options are "monolithic": if the script is deleted, the game still starts.
+  Variables are chosen conservatively for the hardware class; no FPS gain was measured.
 
 STEAM SETTINGS (values from the author's working setup)
   Game "My Summer Car":
@@ -1909,6 +2254,9 @@ WHAT IS NOT VERIFIED  (where a mistake is most likely)
  13. Package names in the distribution hints can differ between releases.
 
 TROUBLESHOOTING
+  About 1 FPS in the menu, other GPU programs lag too (usually only in multiplayer mode)
+      Run  bash @SELF@ --gpu-check  while the game runs. PROTON_USE_WINED3D=1 in the game, or no
+      nvidia-smi entry on a hybrid laptop, is the cause; item 9 sets this up correctly.
   Launcher crashes at start (c0000005 in wininet after the Patreon cookie)
       Block patreon.com in /etc/hosts: the wizard offers it. Undo:
       sudo sed -i '/patreon\.com/d' /etc/hosts
@@ -1963,6 +2311,21 @@ msc-wizard.sh @VERSION@  -  ПОСІБНИК
   6  Вирівняти MachineGuid   після оновлення Proton/Steam
   7  Налаштування            мова, режим запуску, папка гри
   8  Довідка / README        цей текст
+  9  Оптимізація під ПК      визначення заліза -> параметри запуску саме для цього комп’ютера
+
+ОПТИМІЗАЦІЯ ПІД ЦЕЙ ПК  (пункт 9 / --tune, потім --gpu-check)
+  Читає залізо лише з /sys, /proc та (якщо є) lspci / nvidia-smi, тож не потребує root і працює на
+  будь-якому дистрибутиві. Складає параметри запуску для САМЕ цього комп’ютера:
+    ноутбук NVIDIA + Intel/AMD   __NV_PRIME_RENDER_OFFLOAD, __GLX_VENDOR_LIBRARY_NAME, __VK_LAYER_NV_optimus
+                                 і DXVK_FILTER_DEVICE_NAME з коротким іменем карти
+    AMD/Intel/nouveau + 2-й GPU  DRI_PRIME=1 (Mesa бере інший GPU)
+    один GPU / Steam Deck        без змінних GPU; лише налаштування кешу шейдерів
+    gamemoderun                  додається, якщо встановлений (не для Flatpak/Snap Steam)
+  Також пише <папка гри>/.msc-wizard/msc_launch.sh (перемикає doorstop між MSCLoader і WreckMP,
+  знімає PROTON_USE_WINED3D для гри, закриває лаунчер WreckMP через MSC_CLOSE_AFTER=5 с після
+  старту гри) і, якщо їх немає, doorstop_config_vanilla.ini / doorstop_config_wmp.bak.
+  Параметри "монолітні": якщо скрипт видалити, гра все одно запуститься.
+  Змінні підібрані консервативно під клас заліза; приріст FPS не вимірювався.
 
 НАЛАШТУВАННЯ STEAM (значення з робочої конфігурації автора)
   Гра "My Summer Car":
@@ -2036,6 +2399,9 @@ msc-wizard.sh @VERSION@  -  ПОСІБНИК
  13. Назви пакетів у підказках можуть відрізнятися між випусками дистрибутивів.
 
 УСУНЕННЯ ПРОБЛЕМ
+  ~1 FPS у меню, лагають й інші програми з GPU (зазвичай лише в режимі мультиплеєра)
+      Виконай  bash @SELF@ --gpu-check  поки гра працює. PROTON_USE_WINED3D=1 у грі або відсутність
+      запису в nvidia-smi на гібридному ноутбуці це причина; пункт 9 налаштовує це правильно.
   Лаунчер вилітає на старті (c0000005 у wininet після Patreon cookie)
       Заблокуй patreon.com в /etc/hosts: майстер пропонує це сам. Скасувати:
       sudo sed -i '/patreon\.com/d' /etc/hosts
@@ -2120,7 +2486,7 @@ main_menu() {
     [ -n "$GAME_SRC" ] && note "$(t menu_src "$(t "src_name_$GAME_SRC")")"
     echo
     tn menu_head
-    local k; for k in 1 2 3 4 5 6 7 8 0; do note "  $(t "menu_$k")"; done
+    local k; for k in 1 2 3 4 5 6 7 8 9 0; do note "  $(t "menu_$k")"; done
     read -r -p "  $(t choice_prompt 3)" c || bye
     case "${c:-3}" in
       1) act_run flow_mscl ;;
@@ -2131,6 +2497,7 @@ main_menu() {
       6) act_run flow_fixguid ;;
       7) settings_menu; continue ;;
       8) print_readme ;;
+      9) act_run flow_tune ;;
       0|q|Q) return 0 ;;
       *) tw bad_choice "$c"; continue ;;
     esac
@@ -2150,6 +2517,8 @@ main() {
       --status)     action=status ;;
       --fix-guid)   action=fixguid ;;
       --steam-info) action=steaminfo ;;
+      --tune)       action=tune ;;
+      --gpu-check)  action=gpucheck ;;
       --dry-run)    DRY=1 ;;
       --steam)      SRC_KIND=steam ;;
       --nonsteam|--non-steam|--other) SRC_KIND=other ;;
@@ -2195,6 +2564,10 @@ main() {
   case "$action" in
     status)    need_game_dir || exit 1; show_status; exit 0 ;;
     steaminfo) need_game_dir || exit 1; steam_cheatsheet; exit 0 ;;
+    gpucheck)  gpu_check; exit 0 ;;
+    tune)      need_game_dir || exit 1; run_action flow_tune; rc=$?
+               [ "$DRY" = 1 ] && dry_summary
+               exit $rc ;;
     fixguid)   need_game_dir || exit 1; run_action flow_fixguid; rc=$?
                [ "$DRY" = 1 ] && dry_summary
                exit $rc ;;
