@@ -33,7 +33,7 @@ LINK_DOTNET="https://dotnet.microsoft.com/en-us/download/dotnet/6.0"
 GAME_OPTS='WINEDLLOVERRIDES="winhttp=n,b" %command%'
 LAUNCHER_OPTS='PROTON_USE_WINED3D=1 DOTNET_EnableWriteXorExecute=0 %command%'
 WINE_OPTS='WINEDLLOVERRIDES="winhttp=n,b"'   # the same argument for a copy that is launched without Steam
-PROTON_GAME="Proton 8.0"
+PROTON_GAME="Proton 9.0 (Beta)"
 PROTON_LAUNCHER="Proton 11.0"
 PROTON_INSTALL="Proton 9.0 / Proton 9.0 (Beta)"
 LAUNCHER_DIALOG="The game didn't start in 5 minutes"
@@ -225,7 +225,7 @@ m dn_done       '.NET 6 встановлено в prefix %s%s.' '.NET 6 installe
 
 # --- updater, shortcut
 m st_updater    'Updater.exe в prefix гри' 'Updater.exe in the game prefix'
-m up_note       'В автора Updater.exe один раз запускався і в prefix гри (%s). Чи це обов’язково, не перевірено.' 'In the author’s setup Updater.exe was also run once in the game prefix (%s). Whether that is required has not been verified.'
+m up_note       'Цей крок НЕОБОВ’ЯЗКОВИЙ і за замовчуванням пропускається (prefix гри %s). Запуск Updater.exe через protontricks може закінчитись помилкою, а через ярлик у Steam (Proton лаунчера) він працює. Чи потрібен цей запуск взагалі, не перевірено. Відповідай y, лише якщо хочеш спробувати.' 'This step is OPTIONAL and skipped by default (game prefix %s). Running Updater.exe through protontricks may fail, while through the Steam shortcut (the launcher Proton) it works. Whether this run is needed at all has not been verified. Answer y only if you want to try.'
 m q_up          'Запустити Updater.exe в prefix гри?' 'Run Updater.exe in the game prefix?'
 m up_wait       'Дочекайся, поки він закінчить роботу, і закрий вікно.' 'Wait until it finishes, then close the window.'
 m st_shortcut   'Додати лаунчер у Steam' 'Add the launcher to Steam'
@@ -436,7 +436,7 @@ m tune_os       '  Система: %s (пакетний менеджер: %s)' '
 m tune_cpu      '  Процесор: %s, потоків: %s' '  CPU: %s, threads: %s'
 m tune_ram      '  Пам’ять: %s ГБ' '  RAM: %s GB'
 m tune_sess     '  Сесія: %s' '  Session: %s'
-m tune_gpu      '  GPU %s: %s [%s, драйвер: %s, VRAM: %s МБ]' '  GPU %s: %s [%s, driver: %s, VRAM: %s MB]'
+m tune_gpu      '  GPU %s: %s [%s, драйвер: %s, VRAM: %s]' '  GPU %s: %s [%s, driver: %s, VRAM: %s]'
 m tune_nogpu    'GPU не знайдено в /sys/class/drm (контейнер або дивна система). Параметри будуть базовими.' 'No GPU found in /sys/class/drm (container or unusual system). Options will be basic.'
 m tune_deck     '  Це Steam Deck: окремі змінні не потрібні.' '  This is a Steam Deck: no extra variables are needed.'
 m tune_sandbox  '  Steam у Flatpak/Snap: gamemode не додається (він недоступний у пісочниці), скрипт лежить у теці гри.' '  Steam is a Flatpak/Snap: gamemode is not added (unavailable in the sandbox); the script lives in the game folder.'
@@ -476,6 +476,14 @@ m gc_wined3d_lib 'Завантажено wined3d (OpenGL).' 'wined3d (OpenGL) is
 m gc_lvp        'Є libvulkan_lvp: це лише драйвер, який бачить Vulkan-лоадер, сам по собі не означає софтовий рендер.' 'libvulkan_lvp is present: that is only a driver the Vulkan loader sees, it does not mean software rendering by itself.'
 m gc_nv_yes     'Гра є в списку процесів nvidia-smi: рендер на NVIDIA.' 'The game is listed in nvidia-smi: rendering on NVIDIA.'
 m gc_nv_no      'Гри немає в nvidia-smi: рендер іде не на NVIDIA (на гібридному ноутбуці це проблема).' 'The game is not in nvidia-smi: it is not rendering on NVIDIA (a problem on a hybrid laptop).'
+m tune_a        'A) Гра "%s"' 'A) The game "%s"'
+m tune_b        'B) Лаунчер WreckMP (Steam -> Ігри -> Додати стороннюю гру -> Огляд -> "Усі файли")' 'B) The WreckMP launcher (Steam -> Games -> Add a Non-Steam Game -> Browse -> "All files")'
+m tune_proton   'Сумісність -> примусово -> %s' 'Compatibility -> force -> %s'
+m tune_install_proton 'Інсталятори (MSCLoader, .NET, Updater через protontricks) запускай з %s; це не те саме, що Proton лаунчера.' 'Run the installers (MSCLoader, .NET, Updater via protontricks) with %s; that is not the same as the launcher Proton.'
+m tune_ns_note  'Ціль і Почати в потрібні, лише якщо гра додана в Steam як стороння (для копії зі Steam Steam ставить їх сам):' 'Target and Start In are needed only if the game is added to Steam as a non-Steam game (for a Steam copy Steam sets them itself):'
+m tune_confirm_1 'Буде створено файл: %s (папка .msc-wizard у теці гри; плюс doorstop_config_vanilla.ini / doorstop_config_wmp.bak, лише якщо їх ще немає; наявні файли не перезаписуються).' 'This will create the file: %s (the .msc-wizard folder inside the game folder, plus doorstop_config_vanilla.ini / doorstop_config_wmp.bak only if they are missing; existing files are never overwritten).'
+m tune_confirm_q 'Створити?' 'Create it?'
+m tune_skipped  'Пропущено. Параметри нижче показано лише для довідки, скрипта не буде, тому вони працюватимуть лише як звичайний запуск.' 'Skipped. The options below are shown for reference only; without the script they only start the game normally.'
 m ch_tune_hint  'Параметри запуску під ЦЕЙ ПК (GPU, автозакриття лаунчера) дає пункт 9 / bash %s --tune: вони важливіші за значення вище.' 'Launch options fitted to THIS PC (GPU, launcher auto-close) come from item 9 / bash %s --tune: they take priority over the values above.'
 
 # ================================================================== helpers
@@ -1482,7 +1490,7 @@ step_updater_in_game_prefix() {
   ts st_updater
   local e; e=$(wmp_entry) || return 0
   tn up_note "$GAME_APPID"
-  yesno "$(t q_up)" y || return 0
+  yesno "$(t q_up)" n || return 0
   tn up_wait
   run_in_prefix "$GAME_APPID" "$e"; pause
 }
@@ -1776,6 +1784,9 @@ hw_detect() {
     drv=""; [ -L "$dev/driver" ] && drv=$(basename "$(readlink -f "$dev/driver")")
     boot=$(hw_read "$dev/boot_vga"); boot="${boot:-0}"
     vram=0; if [ -r "$dev/mem_info_vram_total" ]; then vram=$(( $(hw_read "$dev/mem_info_vram_total") / 1048576 )); fi
+    if [ "$vram" -eq 0 ] && [ "$vk" = nvidia ] && have nvidia-smi; then   # sysfs shows VRAM only for AMD
+      vram=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -n1 | tr -cd '0-9'); vram="${vram:-0}"
+    fi
     HW_GPU_VENDOR+=("$vk"); HW_GPU_NAME+=("$(hw_pci_name "$addr" "$vk" "$did")")
     HW_GPU_DRV+=("${drv:-?}"); HW_GPU_BOOT+=("$boot"); HW_GPU_VRAM+=("$vram")
   done
@@ -1834,6 +1845,11 @@ tune_build() {  # fills TUNE_ENV (variables) and TUNE_PRE (a prefix command) fro
   esac
   TUNE_ENV="WINEDLLOVERRIDES=\"winhttp=n,b\"${env:+ $env}"
   if [ "$HW_SANDBOX" = 0 ] && [ "$HW_PROFILE" != vm ] && have gamemoderun; then TUNE_PRE="gamemoderun "; fi
+}
+proton_state_any() {  # proton_state_any NAME...: installed if any of the names is
+  local n
+  for n in "$@"; do list_protons | grep -qxF "$n" && { t proton_ok "$n"; return 0; }; done
+  t proton_missing "$1"
 }
 tune_script_path() { printf '%s/.msc-wizard/msc_launch.sh' "$GAME_DIR"; }
 tune_game_opts() {  # the monolithic form: if the script is missing the game still starts
@@ -1933,7 +1949,7 @@ hw_report() {
   tn tune_sess "$HW_SESSION"
   if [ "$n" -eq 0 ]; then tw tune_nogpu; fi
   for ((i=0; i<n; i++)); do
-    tn tune_gpu "$i" "${HW_GPU_NAME[$i]}" "${HW_GPU_VENDOR[$i]}" "${HW_GPU_DRV[$i]}" "${HW_GPU_VRAM[$i]}"
+    tn tune_gpu "$i" "${HW_GPU_NAME[$i]}" "${HW_GPU_VENDOR[$i]}" "${HW_GPU_DRV[$i]}" "$([ "${HW_GPU_VRAM[$i]}" -gt 0 ] && echo "${HW_GPU_VRAM[$i]} MB" || echo '?')"
   done
   [ "$HW_DECK" = 1 ] && tn tune_deck
   if [ "$HW_SANDBOX" = 1 ]; then tn tune_sandbox; fi
@@ -1959,14 +1975,36 @@ step_tune() {
     tn tune_wine_2
     return 0
   fi
-  act "$(t act_tune_script "$sp")" write_launch_script "$sp"
-  make_doorstop_variants
+  local write=1
   if [ "$DRY" != 1 ]; then
+    tn tune_confirm_1 "$sp"
+    if ! yesno "$(t tune_confirm_q)" y; then write=0; tn tune_skipped; fi
+  fi
+  if [ "$write" = 1 ]; then
+    act "$(t act_tune_script "$sp")" write_launch_script "$sp"
+    make_doorstop_variants
+  fi
+  if [ "$DRY" != 1 ] && [ "$write" = 1 ]; then
     { printf 'game:     %s\nlauncher: %s\n' "$(tune_game_opts)" "$(tune_launcher_opts)"; } > "$GAME_DIR/.msc-wizard/launch-options.txt" 2>/dev/null
   fi
   echo
+  local e; e=$(wmp_entry_guess)
+  echo
+  note "$(t tune_a "$GAME_NAME")"
+  tn tune_proton "$PROTON_GAME"; note "  $(proton_state_any "Proton 9.0 (Beta)" "Proton 9.0")"
   tn tune_game_head "$GAME_NAME"; show_copy "$(tune_game_opts)"
+  tn tune_ns_note
+  tn ch_target; show "\"$GAME_DIR/mysummercar.exe\""
+  tn ch_start;  show "\"$GAME_DIR/\""
+  echo
+  note "$(t tune_b)"
+  tn ch_b_file; show "$e"
+  wmp_real || tn ch_b_guess
+  tn ch_target; show "\"$e\""
+  tn ch_start;  show "\"$(dirname "$e")/\""
+  tn tune_proton "$PROTON_LAUNCHER"; note "  $(proton_state "$PROTON_LAUNCHER")"
   tn tune_launcher_head; show_copy "$(tune_launcher_opts)"
+  tn tune_install_proton "$PROTON_INSTALL"
   tn tune_steps
   tn tune_old
   tn tune_verify
@@ -2181,6 +2219,8 @@ TUNE FOR THIS PC  (item 9 / --tune, then --gpu-check)
   WreckMP, unsets PROTON_USE_WINED3D for the game, closes the WreckMP launcher MSC_CLOSE_AFTER=5 s
   after the game starts) and, if missing, doorstop_config_vanilla.ini / doorstop_config_wmp.bak.
   The Launch Options are "monolithic": if the script is deleted, the game still starts.
+  It also prints the Proton version to force for the game and for the launcher, and the Target /
+  Start In values for both. Before writing anything it asks for confirmation.
   Variables are chosen conservatively for the hardware class; no FPS gain was measured.
 
 STEAM SETTINGS (values from the author's working setup)
@@ -2233,7 +2273,8 @@ WHAT IS NOT VERIFIED  (where a mistake is most likely)
   Everything below comes from one author's working setup:
   1. Proton versions (@PROTON_GAME@ game, @PROTON_LAUNCHER@ launcher, @PROTON_INSTALL@ installers)
      are what the author used; other versions may or may not work.
-  2. Running Updater.exe once in the game prefix: not verified to be required.
+  2. Running Updater.exe once in the game prefix through protontricks: not verified to be required,
+     and it can fail; it is therefore OFF by default. The launcher runs fine from its Steam shortcut.
   3. Each variable in the launcher's Launch Options: not verified one by one.
   4. The registry import into the launcher prefix: not verified to be required.
   5. Multiplayer WITHOUT the launcher open: not verified (see the warning at the end).
@@ -2325,6 +2366,8 @@ msc-wizard.sh @VERSION@  -  ПОСІБНИК
   знімає PROTON_USE_WINED3D для гри, закриває лаунчер WreckMP через MSC_CLOSE_AFTER=5 с після
   старту гри) і, якщо їх немає, doorstop_config_vanilla.ini / doorstop_config_wmp.bak.
   Параметри "монолітні": якщо скрипт видалити, гра все одно запуститься.
+  Також друкує версію Proton для гри й для лаунчера та значення Ціль / Почати в для обох.
+  Перед записом файлів питає підтвердження.
   Змінні підібрані консервативно під клас заліза; приріст FPS не вимірювався.
 
 НАЛАШТУВАННЯ STEAM (значення з робочої конфігурації автора)
@@ -2377,7 +2420,8 @@ msc-wizard.sh @VERSION@  -  ПОСІБНИК
   Усе нижче взято з робочої конфігурації одного автора:
   1. Версії Proton (@PROTON_GAME@ гра, @PROTON_LAUNCHER@ лаунчер, @PROTON_INSTALL@ інсталятори) :
      так було в автора; інші версії можуть працювати, а можуть і ні.
-  2. Одноразовий запуск Updater.exe в prefix гри: не перевірено, чи обов’язковий.
+  2. Одноразовий запуск Updater.exe в prefix гри через protontricks: не перевірено, чи обов’язковий,
+     і він може завершитись помилкою; тому за замовчуванням ВИМКНЕНО. Лаунчер нормально працює з ярлика Steam.
   3. Кожна змінна в параметрах запуску лаунчера: окремо не перевірялась.
   4. Імпорт у реєстр prefix-а лаунчера: не перевірено, чи обов’язковий.
   5. Мультиплеєр БЕЗ відкритого лаунчера: не перевірено (див. попередження в кінці).
