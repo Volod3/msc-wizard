@@ -14,14 +14,15 @@
 #   bash msc-wizard.sh --steam-info   Steam cheat sheet: Proton, launch options, shortcut paths
 #   bash msc-wizard.sh --tune         detect this PC's GPU/CPU and give matching Steam launch options
 #   bash msc-wizard.sh --gpu-check   while the game runs: which renderer / GPU it really uses
-#   bash msc-wizard.sh --fix-guid     align MachineGuid (after a Proton/Steam update)
+#   bash msc-wizard.sh --fix-guid     repair: launcher registry + MachineGuid (after an update / moving the game)
+#   bash msc-wizard.sh --fix-reg      fix WreckMP "register/registry not found" only
 #   bash msc-wizard.sh --nonsteam     the game is NOT from Steam (Wine / Lutris / Bottles / Heroic / Steam shortcut)
 #   bash msc-wizard.sh --game-dir P   game folder (otherwise found automatically); --prefix P = Wine prefix; --wine P = wine binary
 #   bash msc-wizard.sh --lang uk|en   interface language (skips the question)
 #   bash msc-wizard.sh --help         short help;  --readme = full manual
 set -u
 
-VERSION="2.3.0"
+VERSION="2.4.0"
 STEAM_APPID=516750
 GAME_APPID=$STEAM_APPID
 GAME_NAME="My Summer Car"
@@ -117,7 +118,7 @@ m menu_2        '2) Тільки WreckMP (MSCLoader уже стоїть)' '2) Wr
 m menu_3        '3) Усе: MSCLoader + WreckMP' '3) Everything: MSCLoader + WreckMP'
 m menu_4        '4) Показати стан і перевірити налаштування (нічого не змінює)' '4) Show the state and check the setup (changes nothing)'
 m menu_5        '5) Шпаргалка Steam: Proton, параметри запуску, шляхи для ярлика' '5) Steam cheat sheet: Proton versions, launch options, shortcut paths'
-m menu_6        '6) Вирівняти MachineGuid (після оновлення Proton/Steam)' '6) Align MachineGuid (after a Proton/Steam update)'
+m menu_6        '6) Полагодити після оновлення / переносу гри (реєстр лаунчера + MachineGuid)' '6) Repair after an update / moving the game (launcher registry + MachineGuid)'
 m menu_7        '7) Налаштування: мова, режим запуску, папка гри, тип копії' '7) Settings: language, run type, game folder, game copy'
 m menu_8        '8) Довідка / README' '8) Help / README'
 m menu_0        '0) Вийти' '0) Quit'
@@ -287,6 +288,12 @@ m act_reg_i     'Імпортував би його в prefix %s' 'Would import 
 m reg_note      'Імпортую %s у prefix %s (в автора такий запис був; чи потрібен, не перевірено).' 'Importing %s into prefix %s (the author had such an entry; whether it is required has not been verified).'
 m reg_ok        'Записано.' 'Written.'
 m reg_bad       'Запис не з’явився в user.reg; перевір вручну.' 'The entry did not appear in user.reg; check manually.'
+m reg_direct    'Записую шлях до гри прямо в реєстр prefix-у %s (без protontricks).' 'Writing the game path straight into the registry of prefix %s (no protontricks needed).'
+m reg_fixed     'Лаунчер WreckMP (prefix %s): шлях до гри виправлено → %s' 'WreckMP launcher (prefix %s): game path fixed → %s'
+m reg_fix_ok    'Шляхи до гри в реєстрі лаунчера WreckMP правильні.' 'The game path in the WreckMP launcher registry is correct.'
+m reg_fix_busy  'Гра / лаунчер / Wine зараз працюють: реєстр не чіпаю (закрий їх і запусти: bash %s --fix-reg).' 'The game / launcher / Wine are running: registry left untouched (close them and run: bash %s --fix-reg).'
+m reg_fix_none  'Не знайдено жодного ярлика WreckMP зі створеним prefix-ом (запусти лаунчер зі Steam один раз).' 'No WreckMP shortcut with an existing prefix was found (start the launcher from Steam once).'
+m st_regfix     'Перевірка реєстру лаунчера WreckMP («register/registry not found»)' 'Checking the WreckMP launcher registry ("register/registry not found")'
 m no_la         'Не знайдено prefix лаунчера (ярлик у Steam?).' 'Launcher prefix not found (is the shortcut in Steam?).'
 m st_guid       'MachineGuid гри і лаунчера' 'MachineGuid of the game and the launcher'
 m guid_intro    'Лаунчер і мод у грі мають бачити один і той самий MachineGuid, а prefix-и в них різні.' 'The launcher and the in-game mod must see the same MachineGuid, but their prefixes are different.'
@@ -812,22 +819,173 @@ PY
 )
 vdf() { have python3 || return 1; python3 -I -c "$PY_VDF" "$@" 2>/dev/null; }
 
-detect_launcher_prefix() {  # no questions; sets LA (prefix id) and L_* (shortcut fields)
-  LA=""; L_APPID=""; L_NAME=""; L_EXE=""; L_START=""; L_OPTS=""
-  local r f row a n e s o
+# Wine keeps its registry in plain text files (user.reg / system.reg). Writing them directly needs no
+# wine/protontricks and works with any Proton; the only rule: wineserver of that prefix must not run.
+PY_REG=$(cat <<'PY'
+import os, re, sys, time
+
+def esc(v):
+    out = []
+    for ch in v:
+        o = ord(ch)
+        if ch == '\\': out.append('\\\\')
+        elif ch == '"': out.append('\\"')
+        elif 32 <= o < 127: out.append(ch)
+        elif o > 0xFFFF:
+            o -= 0x10000
+            out.append('\\x%04x\\x%04x' % (0xD800 + (o >> 10), 0xDC00 + (o & 0x3FF)))
+        else: out.append('\\x%04x' % o)
+    return ''.join(out)
+
+def unesc(v):
+    v = re.sub(r'\\x([0-9a-fA-F]{1,4})', lambda m: chr(int(m.group(1), 16)), v)
+    v = v.replace('\\"', '"').replace('\\\\', '\\')
+    return v.encode('utf-16', 'surrogatepass').decode('utf-16', 'replace')   # \xd83c\xdfae pairs -> one char
+
+def set_values(path, key, values):
+    """key like Software\\Foo (single backslashes); values: {name: str}. Returns True if the file changed."""
+    try:
+        text = open(path, encoding='utf-8', errors='surrogateescape').read()
+    except OSError:
+        return False
+    hdr = '[' + key.replace('\\', '\\\\') + ']'
+    lines = text.split('\n')
+    start = next((i for i, l in enumerate(lines) if l.lower().startswith(hdr.lower() + ' ') or l.lower() == hdr.lower()), None)
+    want = ['"%s"="%s"' % (esc(n), esc(v)) for n, v in values.items()]
+    if start is None:
+        now = int(time.time())
+        ft = (now + 11644473600) * 10000000
+        block = ['', '%s %d' % (hdr, now), '#time=%x' % ft] + want
+        while lines and lines[-1] == '':
+            lines.pop()
+        lines += block + ['']
+    else:
+        end = start + 1
+        while end < len(lines) and not lines[end].startswith('['):
+            end += 1
+        body = lines[start + 1:end]
+        for n, v in values.items():
+            pre = '"%s"=' % esc(n)
+            idx = next((i for i, l in enumerate(body) if l.startswith(pre)), None)
+            line = '"%s"="%s"' % (esc(n), esc(v))
+            if idx is None:
+                ins = len(body)
+                while ins > 0 and body[ins - 1] == '':
+                    ins -= 1
+                body.insert(ins, line)
+            else:
+                body[idx] = line
+        lines[start + 1:end] = body
+    new = '\n'.join(lines)
+    if new == text:
+        return False
+    tmp = path + '.wizard-tmp'
+    with open(tmp, 'w', encoding='utf-8', errors='surrogateescape') as f:
+        f.write(new)
+    os.replace(tmp, path)
+    return True
+
+def get_value(path, key, name):
+    try:
+        text = open(path, encoding='utf-8', errors='surrogateescape').read()
+    except OSError:
+        return ''
+    hdr = '[' + key.replace('\\', '\\\\') + ']'
+    on = False
+    for l in text.split('\n'):
+        if l.startswith('['):
+            on = l.lower().startswith(hdr.lower())
+        elif on and l.startswith('"%s"=' % name):
+            return unesc(l.split('=', 1)[1].strip().strip('"'))
+    return ''
+
+mode = sys.argv[1]
+if mode == 'get':            # get PREFIX_DIR  -> GameDirectory (unescaped), empty if none
+    print(get_value(os.path.join(sys.argv[2], 'user.reg'), r'Software\MaceeikoDevelopment\WreckMP', 'GameDirectory'))
+elif mode == 'wmp':          # wmp PREFIX_DIR WIN_GAME_DIR  -> writes what the WreckMP installer writes
+    pfx, w = sys.argv[2], sys.argv[3]
+    ch = False
+    for k in (r'Software\MaceeikoDevelopment\WreckMP', r'Software\Wow6432Node\MaceeikoDevelopment\WreckMP'):
+        ch |= set_values(os.path.join(pfx, 'user.reg'), k, {'GameDirectory': w})
+    for k in (r'Software\Microsoft\Windows\CurrentVersion\Uninstall\WreckMP',
+              r'Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\WreckMP'):
+        ch |= set_values(os.path.join(pfx, 'system.reg'), k, {
+            'DisplayIcon': w + '\\WreckMP\\Updater.exe', 'DisplayName': 'WreckMP',
+            'InstallLocation': w + '\\WreckMP', 'UninstallString': w + '\\WreckMP\\Uninstall.exe'})
+    print('changed' if ch else 'same')
+PY
+)
+regpy() { have python3 || return 1; python3 -I -c "$PY_REG" "$@"; }
+win_path_u() { printf 'Z:%s' "$1" | sed 's#/#\\#g'; }   # like win_path, single backslashes (for regpy)
+
+# Every WreckMP shortcut (all Steam accounts): "APPID<TAB>EXE" lines
+wmp_shortcuts() {
+  local r f
   while IFS= read -r r; do
     for f in "$r"/userdata/*/config/shortcuts.vdf; do
       [ -f "$f" ] || continue
-      row=$(vdf shortcuts "$f" WreckMP | head -n1)
-      [ -n "$row" ] || continue
-      IFS=$'\037' read -r a n e s o <<<"$row"
-      if [ -z "$L_APPID" ]; then L_APPID="$a"; L_NAME="$n"; L_EXE="$e"; L_START="$s"; L_OPTS="$o"; fi
-      if [ -d "$COMPAT/$a/pfx" ]; then
-        L_APPID="$a"; L_NAME="$n"; L_EXE="$e"; L_START="$s"; L_OPTS="$o"; LA="$a"; return 0
-      fi
+      vdf shortcuts "$f" WreckMP | awk -F '\037' '{print $1 "\t" $3}'
+    done
+  done < <(steam_roots) | awk '!s[$0]++'
+}
+game_dir_of_exe() {  # nearest folder above the launcher exe that contains mysummercar.exe
+  local d; d=$(dirname "$1")
+  while [ -n "$d" ] && [ "$d" != / ]; do
+    [ -f "$d/mysummercar.exe" ] && { printf '%s' "$d"; return 0; }
+    d=$(dirname "$d")
+  done
+  return 1
+}
+# Fix the "register/registry not found" error of the WreckMP launcher: its prefix has no (or a stale)
+# GameDirectory, e.g. after moving the game, a new Steam account / shortcut, or a fresh prefix.
+fix_wmp_registry() {  # fix_wmp_registry [quiet]
+  local quiet="${1:-}" a e g pfx cur want any=0 fixed=0
+  have python3 || return 1
+  if wine_busy; then [ -n "$quiet" ] || tw reg_fix_busy "$SELF"; return 1; fi
+  while IFS=$'\t' read -r a e; do
+    [ -n "$a" ] || continue
+    pfx="$COMPAT/$a/pfx"
+    [ -f "$pfx/user.reg" ] && [ -f "$pfx/system.reg" ] || continue
+    g=$(game_dir_of_exe "$e") || g="$GAME_DIR"
+    [ -n "$g" ] && [ -f "$g/mysummercar.exe" ] || continue
+    g=$(readlink -f "$g"); any=1
+    want=$(win_path_u "$g"); cur=$(regpy get "$pfx")
+    if [ "$cur" != "$want" ] || ! grep -qF 'Uninstall\\WreckMP]' "$pfx/system.reg"; then
+      if [ "$DRY" = 1 ]; then dry_note "$(t reg_fixed "$a" "$want")"; fixed=1; continue; fi
+      cp -a "$pfx/user.reg" "$pfx/user.reg.wizard-bak" 2>/dev/null
+      cp -a "$pfx/system.reg" "$pfx/system.reg.wizard-bak" 2>/dev/null
+      regpy wmp "$pfx" "$want" >/dev/null && { to reg_fixed "$a" "$want"; fixed=1; }
+    fi
+  done < <(wmp_shortcuts)
+  if [ "$any" = 0 ]; then [ -n "$quiet" ] || tn reg_fix_none; return 1; fi
+  [ "$fixed" = 1 ] || [ -n "$quiet" ] || to reg_fix_ok
+  return 0
+}
+
+detect_launcher_prefix() {  # no questions; sets LA (prefix id) and L_* (shortcut fields)
+  # Several Steam accounts / old shortcuts are possible: the best one points to an existing launcher
+  # inside the current game folder and already has a prefix.
+  LA=""; L_APPID=""; L_NAME=""; L_EXE=""; L_START=""; L_OPTS=""
+  local r f row a n e s o score best=-1 gd
+  gd=$(readlink -f "${GAME_DIR:-/nonexistent}" 2>/dev/null)
+  while IFS= read -r r; do
+    for f in "$r"/userdata/*/config/shortcuts.vdf; do
+      [ -f "$f" ] || continue
+      while IFS= read -r row; do
+        [ -n "$row" ] || continue
+        IFS=$'\037' read -r a n e s o <<<"$row"
+        score=0
+        [ -f "$e" ] && score=$((score + 4))
+        [ -n "$gd" ] && case "$(readlink -f "$e" 2>/dev/null)" in "$gd"/*) score=$((score + 2)) ;; esac
+        [ -d "$COMPAT/$a/pfx" ] && score=$((score + 1))
+        if [ "$score" -gt "$best" ]; then
+          best=$score; L_APPID="$a"; L_NAME="$n"; L_EXE="$e"; L_START="$s"; L_OPTS="$o"
+          if [ -d "$COMPAT/$a/pfx" ]; then LA="$a"; else LA=""; fi
+        fi
+      done < <(vdf shortcuts "$f" WreckMP)
     done
   done < <(steam_roots)
-  return 1
+  [ -n "$LA" ]
 }
 steam_launch_opts() {  # steam_launch_opts APPID -> LaunchOptions saved in Steam
   local r f v
@@ -872,7 +1030,12 @@ mscl_real()       { [ -e "$GAME_DIR/winhttp.dll" ] && [ -e "$GAME_DIR/doorstop_c
 wmp_real()        { [ -f "$GAME_DIR/WreckMP/Updater.exe" ] || [ -f "$GAME_DIR/WreckMP/bin/WreckMPLauncher.exe" ] || [ -f "$GAME_DIR/WreckMP/WreckMPLauncher.exe" ]; }
 dotnet_real()     { ls -d "$(pfx_dir "$1")/drive_c/Program Files/dotnet/shared/Microsoft.WindowsDesktop.App/"6.* >/dev/null 2>&1; }
 hosts_real()      { grep -qE '^[^#]*patreon\.com' /etc/hosts 2>/dev/null; }
-reg_real()        { [ -n "$LA" ] && grep -qF "\"GameDirectory\"=\"$(win_path "$GAME_DIR" | sed 's#\\#\\\\#g')\"" "$(pfx_dir "$LA")/user.reg" 2>/dev/null && grep -qF 'Uninstall\\WreckMP]' "$(pfx_dir "$LA")/system.reg" 2>/dev/null; }
+reg_real()        { [ -n "$LA" ] && grep -qF 'Uninstall\\WreckMP]' "$(pfx_dir "$LA")/system.reg" 2>/dev/null && reg_dir_ok "$(pfx_dir "$LA")"; }
+reg_dir_ok() {  # GameDirectory in this prefix points to the current game folder (any spelling of the path)
+  local cur; cur=$(regpy get "$1" 2>/dev/null) || cur=""
+  [ -z "$cur" ] && cur=$(grep -m1 '^"GameDirectory"=' "$1/user.reg" 2>/dev/null | sed 's/^"GameDirectory"="\(.*\)"$/\1/; s/\\\\/\\/g')
+  [ "$cur" = "$(win_path_u "$GAME_DIR")" ] || [ "$cur" = "$(win_path_u "$(readlink -f "$GAME_DIR")")" ]
+}
 guid_real()       { [ -n "$LA" ] && [ -n "$(guid_of "$(pfx_dir "$LA")/system.reg")" ] && [ "$(guid_of "$(pfx_dir "$LA")/system.reg")" = "$(guid_of "$(pfx_dir "$GAME_APPID")/system.reg")" ]; }
 
 mscl_present()    { [ "$SIM_MSCL" = 1 ] || mscl_real; }            # for prerequisites (ignores DEMO)
@@ -907,7 +1070,9 @@ launch_opts_ok() {
   done < <(steam_roots)
   return 1
 }
-busy_list() { ps -eo pid=,args= 2>/dev/null | grep -iE '[m]ysummercar\.exe|[W]reckMPLauncher|[w]ineserver'; }
+busy_list() {  # by process name (comm), so a terminal that merely mentions these words does not count
+  ps -eo pid=,comm=,args= 2>/dev/null | awk 'tolower($2) ~ /^(mysummercar\.ex|wreckmplauncher|wineserver)/ { $2 = ""; print }'
+}
 wine_busy() { [ -n "$(busy_list)" ]; }
 kill_busy() {
   local p
@@ -1610,6 +1775,14 @@ reg_content() {  # registry for the launcher (CRLF): game folder + install locat
 step_reg() {
   ts st_reg
   if reg_written; then to reg_have "$LA"; return 0; fi
+  if have python3 && [ "$DRY" != 1 ]; then          # direct write: no protontricks, works with any Proton
+    ensure_idle
+    tn reg_direct "$LA"
+    cp -a "$(pfx_dir "$LA")/user.reg" "$(pfx_dir "$LA")/user.reg.wizard-bak" 2>/dev/null
+    cp -a "$(pfx_dir "$LA")/system.reg" "$(pfx_dir "$LA")/system.reg.wizard-bak" 2>/dev/null
+    regpy wmp "$(pfx_dir "$LA")" "$(win_path_u "$(readlink -f "$GAME_DIR")")" >/dev/null
+    if reg_written; then to reg_ok; return 0; fi
+  fi
   need_runner || return 1; ensure_idle
   local f cmd
   f="$(pfx_dir "$LA")/drive_c/wmp-wizard.reg"   # inside the prefix (C:\): every Wine/Proton sees it
@@ -2080,9 +2253,18 @@ flow_wreckmp_core() {   # WreckMP steps (the game settings step is done by the c
 }
 flow_wmp_only() { need_runner || return 1; step_game_settings; flow_wreckmp_core; recap 2; }
 flow_all()      { need_runner || return 1; step_game_settings; step_mscl; flow_wreckmp_core; recap 3; }
+flow_fixreg() {
+  ts st_regfix
+  if [ "$GAME_SRC" = wine ]; then
+    [ -n "$GAME_PFX" ] && LA="$GAME_APPID" && step_reg
+    return 0
+  fi
+  fix_wmp_registry
+}
 flow_fixguid() {
   if [ "$GAME_SRC" = wine ]; then tn guid_wine; return 0; fi
   [ "$GAME_SRC" = shortcut ] && adopt_game_shortcut
+  ts st_regfix; fix_wmp_registry
   if ! detect_launcher_prefix; then
     if [ "$DRY" = 1 ]; then LA=0000000000; else td no_la; fi
   fi
@@ -2144,7 +2326,8 @@ Usage:  bash @SELF@ [option]
   --tune           detect this PC's GPU/CPU/RAM and print Steam Launch Options that fit it
                    (right GPU on hybrid laptops, mode switch, launcher auto-close after 5 s)
   --gpu-check      while the game runs: shows which renderer (DXVK / wined3d) and GPU it really uses
-  --fix-guid       align MachineGuid (run after a Proton/Steam update)
+  --fix-guid       repair after a Proton/Steam update or moving the game: launcher registry + MachineGuid
+  --fix-reg        only fix the launcher's "register/registry not found" (game path in its registry)
   --nonsteam       the game is NOT from Steam (the wizard finds it by itself and asks how you launch it:
                    a Steam shortcut or plain Wine / Lutris / Bottles / Heroic); --steam = Steam copy
   --game-dir PATH  game folder (otherwise found automatically)
@@ -2176,7 +2359,8 @@ msc-wizard.sh @VERSION@: майстер встановлення MSCLoader і Wr
   --tune           визначити GPU/CPU/RAM цього ПК і дати параметри запуску Steam, що йому підходять
                    (потрібна відеокарта на гібридних ноутбуках, перемикач режимів, автозакриття лаунчера за 5 с)
   --gpu-check      поки гра працює: який рендерер (DXVK / wined3d) і яка відеокарта справді використовуються
-  --fix-guid       вирівняти MachineGuid (після оновлення Proton/Steam)
+  --fix-guid       полагодити після оновлення Proton/Steam чи переносу гри: реєстр лаунчера + MachineGuid
+  --fix-reg        лише виправити «register/registry not found» у лаунчері (шлях до гри в його реєстрі)
   --nonsteam       гра НЕ зі Steam (майстер сам її знаходить і питає, як ти запускаєш:
                    ярлик у Steam або Wine / Lutris / Bottles / Heroic); --steam = копія зі Steam
   --game-dir ШЛЯХ  папка гри (інакше знаходиться автоматично)
@@ -2582,6 +2766,7 @@ main() {
       -V|--version) action=version ;;
       --status)     action=status ;;
       --fix-guid)   action=fixguid ;;
+      --fix-reg|--fix-registry) action=fixreg ;;
       --steam-info) action=steaminfo ;;
       --tune)       action=tune ;;
       --gpu-check)  action=gpucheck ;;
@@ -2632,6 +2817,9 @@ main() {
     steaminfo) need_game_dir || exit 1; steam_cheatsheet; exit 0 ;;
     gpucheck)  gpu_check; exit 0 ;;
     tune)      need_game_dir || exit 1; run_action flow_tune; rc=$?
+               [ "$DRY" = 1 ] && dry_summary
+               exit $rc ;;
+    fixreg)    need_game_dir || exit 1; run_action flow_fixreg; rc=$?
                [ "$DRY" = 1 ] && dry_summary
                exit $rc ;;
     fixguid)   need_game_dir || exit 1; run_action flow_fixguid; rc=$?

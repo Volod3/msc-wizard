@@ -34,7 +34,7 @@ An interactive bash wizard that installs **MSCLoader** (mod loader) and/or **Wre
 - 📦 **Any Steam** — native, Flatpak, Snap
 - 🎮 **Non-Steam copy** — Wine / Lutris / Bottles / Heroic / Steam shortcut
 - 🔍 **Status check** — inspect current setup without changes
-- 🛠️ **Fix MachineGuid** — after a Proton/Steam update
+- 🛠️ **Repair** — fixes the launcher's *"register/registry not found"* (game path in its registry, written straight into the prefix files, no protontricks) and aligns MachineGuid — after a Proton/Steam update, moving the game or a new Steam shortcut/account
 - ⚡ **Tune for this PC** — detects GPU/CPU/RAM and generates matching Steam Launch Options (hybrid NVIDIA/AMD/Intel laptops, Steam Deck, Flatpak/Snap Steam)
 - 🚀 **Launcher auto-close** — WreckMP launcher closes itself 5 s after the game starts; multiplayer keeps working
 - 🔎 **GPU check** — shows whether the running game uses DXVK or wined3d and which GPU
@@ -62,7 +62,8 @@ bash msc-wizard.sh --status          # show state only (no changes)
 bash msc-wizard.sh --steam-info      # Steam cheat sheet: Proton, launch options, paths
 bash msc-wizard.sh --tune             # detect this PC and print the best Launch Options
 bash msc-wizard.sh --gpu-check        # while the game runs: DXVK or wined3d? which GPU?
-bash msc-wizard.sh --fix-guid        # align MachineGuid (after Proton/Steam update)
+bash msc-wizard.sh --fix-guid        # repair: launcher registry + MachineGuid
+bash msc-wizard.sh --fix-reg         # only fix "register/registry not found"
 bash msc-wizard.sh --nonsteam        # game is NOT from Steam (Wine / Lutris / Bottles / Heroic)
 bash msc-wizard.sh --game-dir /path  # specify game folder manually
 bash msc-wizard.sh --lang uk|en      # interface language (skips the question)
@@ -79,7 +80,7 @@ What do we do?
   3) Everything: MSCLoader + WreckMP
   4) Show the state and check the setup
   5) Steam cheat sheet
-  6) Align MachineGuid
+  6) Repair after an update / moving the game (launcher registry + MachineGuid)
   7) Settings
   8) Help / README
   9) Tune for this PC (hardware -> Launch Options)
@@ -120,7 +121,7 @@ It also creates `<game folder>/.msc-wizard/msc_launch.sh`, which switches MSCLoa
 - 📦 **Будь-який Steam** — native, Flatpak, Snap
 - 🎮 **Non-Steam копія** — Wine / Lutris / Bottles / Heroic / Steam shortcut
 - 🔍 **Статус** — перевірка поточного стану без змін
-- 🛠️ **Fix MachineGuid** — після оновлення Proton/Steam
+- 🛠️ **Ремонт** — виправляє *«register/registry not found»* у лаунчері (шлях до гри в його реєстрі пишеться прямо у файли prefix-у, без protontricks) і вирівнює MachineGuid — після оновлення Proton/Steam, переносу гри чи нового ярлика/акаунта Steam
 - ⚡ **Оптимізація під ПК** — визначає GPU/CPU/RAM і дає відповідні параметри запуску Steam (гібридні ноутбуки NVIDIA/AMD/Intel, Steam Deck, Flatpak/Snap Steam)
 - 🚀 **Автозакриття лаунчера** — лаунчер WreckMP закривається сам через 5 с після старту гри; мультиплеєр лишається
 - 🔎 **Перевірка GPU** — показує, чи гра на DXVK чи wined3d і на якій відеокарті
@@ -148,7 +149,8 @@ bash msc-wizard.sh --status          # показати стан (нічого �
 bash msc-wizard.sh --steam-info      # шпаргалка Steam: Proton, параметри запуску, шляхи
 bash msc-wizard.sh --tune             # визначити цей ПК і дати найкращі параметри запуску
 bash msc-wizard.sh --gpu-check        # поки гра працює: DXVK чи wined3d? яка відеокарта?
-bash msc-wizard.sh --fix-guid        # вирівняти MachineGuid (після оновлення Proton/Steam)
+bash msc-wizard.sh --fix-guid        # ремонт: реєстр лаунчера + MachineGuid
+bash msc-wizard.sh --fix-reg         # лише виправити «register/registry not found»
 bash msc-wizard.sh --nonsteam        # гра НЕ зі Steam (Wine / Lutris / Bottles / Heroic)
 bash msc-wizard.sh --game-dir /path  # вказати папку гри вручну
 bash msc-wizard.sh --lang uk|en      # мова інтерфейсу (пропускає запитання)
@@ -165,7 +167,7 @@ bash msc-wizard.sh --readme          # повний мануал
   3) Усе: MSCLoader + WreckMP
   4) Показати стан і перевірити налаштування
   5) Шпаргалка Steam
-  6) Вирівняти MachineGuid
+  6) Полагодити після оновлення / переносу гри (реєстр лаунчера + MachineGuid)
   7) Налаштування
   8) Довідка / README
   9) Оптимізація під цей ПК (залізо -> параметри запуску)
