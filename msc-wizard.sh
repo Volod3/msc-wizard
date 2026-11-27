@@ -491,6 +491,15 @@ m tune_proton   'Сумісність -> примусово -> %s' 'Compatibilit
 m tune_install_proton 'Інсталятори (MSCLoader, .NET, Updater через protontricks) запускай з %s; це не те саме, що Proton лаунчера.' 'Run the installers (MSCLoader, .NET, Updater via protontricks) with %s; that is not the same as the launcher Proton.'
 m tune_ns_note  'Ціль і Почати в потрібні, лише якщо гра додана в Steam як стороння (для копії зі Steam Steam ставить їх сам):' 'Target and Start In are needed only if the game is added to Steam as a non-Steam game (for a Steam copy Steam sets them itself):'
 m tune_confirm_1 'Буде створено файл: %s (папка .msc-wizard у теці гри; плюс doorstop_config_vanilla.ini / doorstop_config_wmp.bak, лише якщо їх ще немає; наявні файли не перезаписуються).' 'This will create the file: %s (the .msc-wizard folder inside the game folder, plus doorstop_config_vanilla.ini / doorstop_config_wmp.bak only if they are missing; existing files are never overwritten).'
+m lo_q          'Записати ці параметри запуску в Steam автоматично (гра + ярлик лаунчера)?' 'Write these Launch Options into Steam automatically (game + launcher shortcut)?'
+m lo_steam_on   'Steam зараз відкритий: він перезапише параметри при виході. Закрити Steam зараз?' 'Steam is running: it would overwrite the options when it exits. Close Steam now?'
+m lo_closing    'Закриваю Steam...' 'Closing Steam...'
+m lo_steam_left 'Steam не закрився: параметри не записано, встав їх вручну (нижче).' 'Steam did not close: options not written, paste them by hand (below).'
+m lo_game_ok    'Параметри запуску гри записано (%s).' 'Game Launch Options written (%s).'
+m lo_la_ok      'Параметри запуску ярлика лаунчера записано (%s).' 'Launcher shortcut Launch Options written (%s).'
+m lo_la_none    'Ярлик лаунчера WreckMP у Steam не знайдено: його параметри встав вручну після створення ярлика.' 'The WreckMP launcher shortcut was not found in Steam: paste its options by hand once the shortcut exists.'
+m lo_manual     'Вставляти вручну нічого не треба: усе вже в Steam. Нижче — для довідки.' 'Nothing to paste by hand: everything is already in Steam. Below is for reference.'
+m ac_q          'Налаштувати автозакриття лаунчера WreckMP (через 5 с після старту гри) і автоперемикач MSCLoader / WreckMP?' 'Set up auto-closing the WreckMP launcher (5 s after the game starts) and the MSCLoader / WreckMP auto-switch?'
 m tune_confirm_q 'Створити?' 'Create it?'
 m tune_skipped  'Пропущено. Параметри нижче показано лише для довідки, скрипта не буде, тому вони працюватимуть лише як звичайний запуск.' 'Skipped. The options below are shown for reference only; without the script they only start the game normally.'
 m ch_tune_hint  'Параметри запуску під ЦЕЙ ПК (GPU, автозакриття лаунчера) дає пункт 9 / bash %s --tune: вони важливіші за значення вище.' 'Launch options fitted to THIS PC (GPU, launcher auto-close) come from item 9 / bash %s --tune: they take priority over the values above.'
@@ -722,6 +731,7 @@ find_game_dir() { find_game_dirs | head -n1; }
 # Binary VDF: shortcuts.vdf (the appid of a shortcut is taken from the file, not computed:
 # the user may edit the shortcut).
 PY_VDF=$(cat <<'PY'
+import os
 import re, sys
 
 def unesc(s):
@@ -813,6 +823,69 @@ try:
             if appid and needle in (exe + '\x00' + name).lower():
                 print('\x1f'.join(clean(x) for x in (appid, name, exe,
                       str(e.get('startdir', '')).strip('"'), e.get('launchoptions', ''))))
+    elif mode == 'setlaunch':     # setlaunch LOCALCONFIG APPID OPTS  (text VDF: apps/<APPID>/LaunchOptions)
+        import re as _re
+        path, appid, opts = sys.argv[2], sys.argv[3], sys.argv[4]
+        txt = open(path, encoding='utf-8', errors='surrogateescape').read()
+        val = opts.replace('\\', '\\\\').replace('"', '\\"')
+        # find the "apps" block of the Steam section, then the APPID block inside it
+        m = _re.search(r'"apps"\s*\{', txt, _re.I)
+        if not m:
+            print('noapps'); sys.exit(0)
+        def block_end(i):           # i = index just after "{": returns index of the matching "}"
+            depth, j, q = 1, i, False
+            while j < len(txt):
+                c = txt[j]
+                if q:
+                    if c == '\\': j += 2; continue
+                    if c == '"': q = False
+                elif c == '"': q = True
+                elif c == '{': depth += 1
+                elif c == '}':
+                    depth -= 1
+                    if depth == 0: return j
+                j += 1
+            return len(txt)
+        a0, a1 = m.end(), block_end(m.end())
+        am = _re.compile(r'\n(\s*)"%s"\s*\{' % _re.escape(appid)).search(txt, a0, a1)
+        if am:
+            b0 = am.end(); b1 = block_end(b0); ind = am.group(1) + '\t'
+            lm = _re.compile(r'"LaunchOptions"\s*"((?:[^"\\]|\\.)*)"', _re.I).search(txt, b0, b1)
+            if lm:
+                txt = txt[:lm.start()] + '"LaunchOptions"\t\t"%s"' % val + txt[lm.end():]
+            else:
+                txt = txt[:b0] + '\n%s"LaunchOptions"\t\t"%s"' % (ind, val) + txt[b0:]
+        else:
+            ind = _re.search(r'\n(\s*)"apps"', txt[:a0], _re.I)
+            ind = (ind.group(1) if ind else '\t\t\t\t') + '\t'
+            txt = txt[:a0] + '\n%s"%s"\n%s{\n%s\t"LaunchOptions"\t\t"%s"\n%s}' % (ind, appid, ind, ind, val, ind) + txt[a0:]
+        tmp = path + '.wizard-tmp'
+        open(tmp, 'w', encoding='utf-8', errors='surrogateescape').write(txt)
+        os.replace(tmp, path); print('ok')
+    elif mode == 'setshortcut':   # setshortcut SHORTCUTS APPID OPTS  (binary VDF: LaunchOptions of one shortcut)
+        import struct
+        path, appid, opts = sys.argv[2], int(sys.argv[3]) & 0xFFFFFFFF, sys.argv[4]
+        b = open(path, 'rb').read()
+        key = b'\x02appid\x00' + struct.pack('<I', appid)
+        i = b.lower().find(key.lower())
+        if i < 0:
+            print('noshortcut'); sys.exit(0)
+        nxt = b.lower().find(b'\x02appid\x00', i + len(key))
+        end = nxt if nxt >= 0 else len(b)
+        # the entry starts a bit before "appid": search LaunchOptions in the whole entry (start = previous \x00<n>\x00 header)
+        start = b.rfind(b'\x00\x00', 0, i)
+        lo_key = b'\x01launchoptions\x00'
+        j = b.lower().find(lo_key, max(0, start), end)
+        new = opts.encode('utf-8')
+        if j >= 0:
+            v0 = j + len(lo_key); v1 = b.find(b'\x00', v0)
+            b = b[:v0] + new + b[v1:]
+        else:
+            ins = i + len(key)
+            b = b[:ins] + b'\x01LaunchOptions\x00' + new + b'\x00' + b[ins:]
+        tmp = path + '.wizard-tmp'
+        open(tmp, 'wb').write(b)
+        os.replace(tmp, path); print('ok')
 except Exception:
     pass
 PY
@@ -2051,7 +2124,7 @@ tune_game_opts() {  # the monolithic form: if the script is missing the game sti
   printf '%s' "$TUNE_ENV bash -c 'S=\"$(tune_script_path)\"; if [ -x \"\$S\" ]; then exec \"\$S\" \"\$@\"; else exec \"\$@\"; fi' _ ${TUNE_PRE}%command%"
 }
 tune_launcher_opts() {  # writes the PID of the launcher into the flag file for the duration of its life
-  printf '%s' "bash -c 'F=\"$GAME_DIR/.wmp_flag\"; echo \$\$ > \"\$F\"; trap \"rm -f \\\"\$F\\\"\" EXIT; \"\$@\"' _ %command%"
+  printf '%s' "PROTON_USE_WINED3D=1 DOTNET_EnableWriteXorExecute=0 bash -c 'F=\"$GAME_DIR/.wmp_flag\"; echo \$\$ > \"\$F\"; trap \"rm -f \\\"\$F\\\"\" EXIT; \"\$@\"' _ %command%"
 }
 
 write_launch_script() {  # write_launch_script FILE : the switcher + launcher auto-close, game folder baked in
@@ -2159,6 +2232,45 @@ hw_report() {
   return 0
 }
 
+steam_running() { ps -eo comm= 2>/dev/null | grep -qxE 'steam|steamwebhelper'; }
+close_steam() {  # asks, then closes Steam and waits up to 30 s
+  steam_running || return 0
+  yesno "$(t lo_steam_on)" y || return 1
+  tn lo_closing
+  if have steam; then steam -shutdown >/dev/null 2>&1 & else pkill -TERM -x steam 2>/dev/null; fi
+  local i; for i in $(seq 1 30); do steam_running || return 0; sleep 1; done
+  return 1
+}
+apply_launch_options() {  # writes the tuned Launch Options into Steam (Steam must be closed); 0 = all done
+  local r f res game_done=0 la_done=0 go lo
+  go=$(tune_game_opts); lo=$(tune_launcher_opts)
+  if [ "$DRY" = 1 ]; then dry_note "$(t lo_game_ok "localconfig.vdf")"; dry_note "$(t lo_la_ok "shortcuts.vdf")"; return 0; fi
+  close_steam || { tw lo_steam_left; return 1; }
+  [ "$GAME_SRC" = shortcut ] || detect_launcher_prefix >/dev/null 2>&1
+  while IFS= read -r r; do
+    for f in "$r"/userdata/*/config/localconfig.vdf; do
+      [ -f "$f" ] && [ "$GAME_SRC" != shortcut ] || continue
+      grep -q "\"$GAME_APPID\"" "$f" || continue
+      cp -a "$f" "$f.wizard-bak"
+      res=$(vdf setlaunch "$f" "$GAME_APPID" "$go")
+      [ "$res" = ok ] && { to lo_game_ok "$f"; game_done=1; }
+    done
+    for f in "$r"/userdata/*/config/shortcuts.vdf; do
+      [ -f "$f" ] || continue
+      if [ "$GAME_SRC" = shortcut ] && [ -n "$G_APPID" ]; then
+        cp -a "$f" "$f.wizard-bak"
+        res=$(vdf setshortcut "$f" "$G_APPID" "$go"); [ "$res" = ok ] && { to lo_game_ok "$f"; game_done=1; }
+      fi
+      if [ -n "$L_APPID" ]; then
+        [ -f "$f.wizard-bak" ] || cp -a "$f" "$f.wizard-bak"
+        res=$(vdf setshortcut "$f" "$L_APPID" "$lo"); [ "$res" = ok ] && { to lo_la_ok "$f"; la_done=1; }
+      fi
+    done
+  done < <(steam_roots)
+  [ "$la_done" = 1 ] || tn lo_la_none
+  [ "$game_done" = 1 ] && [ "$la_done" = 1 ]
+}
+
 step_tune() {
   ts st_tune
   case "$GAME_DIR" in *\'*|*\"*|*\$*|*\`*|*\\*) td tune_badpath "$GAME_DIR" ;; esac
@@ -2181,6 +2293,9 @@ step_tune() {
   fi
   if [ "$DRY" != 1 ] && [ "$write" = 1 ]; then
     { printf 'game:     %s\nlauncher: %s\n' "$(tune_game_opts)" "$(tune_launcher_opts)"; } > "$GAME_DIR/.msc-wizard/launch-options.txt" 2>/dev/null
+  fi
+  if [ "$write" = 1 ] && { [ "$DRY" = 1 ] || yesno "$(t lo_q)" y; }; then
+    apply_launch_options && tn lo_manual
   fi
   echo
   local e; e=$(wmp_entry_guess)
@@ -2250,6 +2365,10 @@ flow_wreckmp_core() {   # WreckMP steps (the game settings step is done by the c
   step_reg
   step_launcher_test
   [ "$GAME_SRC" = wine ] || step_guid
+  if [ "$GAME_SRC" != wine ]; then
+    echo
+    if [ "$DRY" = 1 ] || yesno "$(t ac_q)" y; then step_tune; fi
+  fi
 }
 flow_wmp_only() { need_runner || return 1; step_game_settings; flow_wreckmp_core; recap 2; }
 flow_all()      { need_runner || return 1; step_game_settings; step_mscl; flow_wreckmp_core; recap 3; }

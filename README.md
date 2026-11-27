@@ -36,7 +36,7 @@ An interactive bash wizard that installs **MSCLoader** (mod loader) and/or **Wre
 - 🔍 **Status check** — inspect current setup without changes
 - 🛠️ **Repair** — fixes the launcher's *"register/registry not found"* (game path in its registry, written straight into the prefix files, no protontricks) and aligns MachineGuid — after a Proton/Steam update, moving the game or a new Steam shortcut/account
 - ⚡ **Tune for this PC** — detects GPU/CPU/RAM and generates matching Steam Launch Options (hybrid NVIDIA/AMD/Intel laptops, Steam Deck, Flatpak/Snap Steam)
-- 🚀 **Launcher auto-close** — WreckMP launcher closes itself 5 s after the game starts; multiplayer keeps working
+- 🚀 **Launcher auto-close** — WreckMP launcher closes itself 5 s after the game starts; multiplayer keeps working. The wizard offers it right after installing WreckMP (and in item 9 / `--tune`) and **writes the Launch Options into Steam by itself** — game and launcher shortcut (it closes Steam first, asking you)
 - 🔎 **GPU check** — shows whether the running game uses DXVK or wined3d and which GPU
 
 ### Requirements
@@ -121,6 +121,7 @@ It also creates `<game folder>/.msc-wizard/msc_launch.sh`, which switches MSCLoa
 - 📦 **Будь-який Steam** — native, Flatpak, Snap
 - 🎮 **Non-Steam копія** — Wine / Lutris / Bottles / Heroic / Steam shortcut
 - 🔍 **Статус** — перевірка поточного стану без змін
+- 🚀 **Автозакриття лаунчера** — лаунчер WreckMP сам закривається через 5 с після старту гри, мультиплеєр працює далі. Майстер пропонує це одразу після встановлення WreckMP (і в пункті 9 / `--tune`) та **сам записує параметри запуску в Steam** — для гри й ярлика лаунчера (спершу спитає й закриє Steam)
 - 🛠️ **Ремонт** — виправляє *«register/registry not found»* у лаунчері (шлях до гри в його реєстрі пишеться прямо у файли prefix-у, без protontricks) і вирівнює MachineGuid — після оновлення Proton/Steam, переносу гри чи нового ярлика/акаунта Steam
 - ⚡ **Оптимізація під ПК** — визначає GPU/CPU/RAM і дає відповідні параметри запуску Steam (гібридні ноутбуки NVIDIA/AMD/Intel, Steam Deck, Flatpak/Snap Steam)
 - 🚀 **Автозакриття лаунчера** — лаунчер WreckMP закривається сам через 5 с після старту гри; мультиплеєр лишається
